@@ -19,6 +19,9 @@ STRICT RULES — violation causes the response to be rejected:
 4b. marketRegime and briefConfidence are pre-computed — copy them VERBATIM from
     input.precomputedRegime.marketRegime and input.precomputedRegime.briefConfidence.
     If input.precomputedRegime is absent, derive them from market data as a fallback.
+4c. alts.rotationState and alts.breadth are pre-computed — copy them VERBATIM from
+    input.altsBreadth.rotationState and input.altsBreadth.breadthLabel if present.
+    If input.altsBreadth is absent or totalTracked is 0, derive from market data as a fallback.
 5. If a source status is "failed" or "unavailable", write "data unavailable" in that section's
    summary — do not invent data.
 6. Timeframes: only Weekly, Daily, 4H, Session. Never reference 1H, 15m, 5m.

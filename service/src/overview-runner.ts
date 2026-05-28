@@ -6,6 +6,7 @@ import { OverviewFormatter } from './overview-formatter.js';
 import { computeDataStatus } from './source-health-evaluator.js';
 import { computeWhatChanged, firstBriefBullets } from './brief-diff-engine.js';
 import { classifyMarketRegime } from './market-regime-classifier.js';
+import { analyzeAltsBreadth } from './alts-breadth-analyzer.js';
 import {
   computeWeeklyLevels,
   computeDailyLevels,
@@ -108,6 +109,9 @@ export class OverviewRunner {
           )
         : null;
 
+      // 5c. Analyze alts breadth from market snapshots
+      const altsBreadth = analyzeAltsBreadth(marketSnapshots);
+
       // 6. Build data quality summary and pre-compute source health
       const failedSources = collectorRuns
         .filter((r) => r.status === 'FAILED')
@@ -185,6 +189,7 @@ export class OverviewRunner {
         dataStatus,
         previousBrief,
         precomputedRegime,
+        altsBreadth,
       });
 
       // 8. Save input snapshot
@@ -202,6 +207,15 @@ export class OverviewRunner {
         ...llmResult.output,
         marketRegime: precomputedRegime.marketRegime,
         briefConfidence: precomputedRegime.briefConfidence,
+        alts: {
+          ...llmResult.output.alts,
+          rotationState: altsBreadth.rotationState !== 'unknown'
+            ? altsBreadth.rotationState
+            : llmResult.output.alts.rotationState,
+          breadth: altsBreadth.totalTracked > 0
+            ? altsBreadth.breadthLabel
+            : llmResult.output.alts.breadth,
+        },
         whatChanged: previousOutput !== null
           ? computeWhatChanged(previousOutput, llmResult.output)
           : firstBriefBullets(),

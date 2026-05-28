@@ -107,6 +107,14 @@ export type PrecomputedRegime = {
   briefConfidence: 'low' | 'medium' | 'high';
 };
 
+export type AltsBreadthSummary = {
+  breadthPercent: number;
+  positiveCount: number;
+  totalTracked: number;
+  breadthLabel: string;
+  rotationState: 'broad_rotation' | 'selective_rotation' | 'no_rotation' | 'weak' | 'unknown';
+};
+
 export type PreviousBriefContext = {
   generatedAtUtc: string;
   marketRegime: MarketRegime;
@@ -152,6 +160,7 @@ export type OverviewInput = {
   dataStatus?: DataStatus;
   previousBrief?: PreviousBriefContext;
   precomputedRegime?: PrecomputedRegime;
+  altsBreadth?: AltsBreadthSummary;
 };
 
 export type DataStatusValue = 'fresh' | 'stale' | 'partial' | 'failed' | 'unavailable';
