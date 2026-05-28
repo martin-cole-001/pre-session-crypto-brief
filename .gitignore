@@ -5,6 +5,10 @@ dist/
 data/
 .env
 .env.*
+!.env.example
 app/src/generated/
 *.log
+*.tsbuildinfo
 .DS_Store
+coverage/
+.nyc_output/
