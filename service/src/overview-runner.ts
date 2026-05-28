@@ -1,9 +1,10 @@
 import type { SessionOverviewDeps } from './service-types.js';
 import type { OverviewRunOptions, OverviewRunResult } from './service-types.js';
-import type { NormalizedEvent, CollectorRunRecord, DataQualityInfo, HtfLevelsSnapshot } from './ports.js';
+import type { NormalizedEvent, CollectorRunRecord, DataQualityInfo, HtfLevelsSnapshot, PreviousBriefContext } from './ports.js';
 import { OverviewInputBuilder } from './overview-input-builder.js';
 import { OverviewFormatter } from './overview-formatter.js';
 import { computeDataStatus } from './source-health-evaluator.js';
+import { computeWhatChanged, firstBriefBullets } from './brief-diff-engine.js';
 import {
   computeWeeklyLevels,
   computeDailyLevels,
@@ -30,6 +31,10 @@ export class OverviewRunner {
     logger.info({ session }, 'Starting session overview run');
 
     try {
+      // 0. Load previous successful brief for diff context
+      const previousRecord = await repository.getLatestOverview(session);
+      const previousOutput = previousRecord?.status === 'SUCCESS' ? previousRecord.outputJson : null;
+
       // 1. Collect market data
       const marketSnapshots = await this.deps.marketDataCollector.collect(allSymbols);
 
@@ -125,6 +130,22 @@ export class OverviewRunner {
       });
 
       // 7. Build input
+      const previousBrief: PreviousBriefContext | undefined = previousOutput !== null ? {
+        generatedAtUtc: previousOutput.generatedAtUtc,
+        marketRegime: previousOutput.marketRegime,
+        briefConfidence: previousOutput.briefConfidence,
+        btcStructure: previousOutput.btc.structure,
+        btcPosition: previousOutput.btc.position,
+        btcSummary: previousOutput.btc.summary,
+        ethVsbtc: previousOutput.eth.vsbtc,
+        altRotationState: previousOutput.alts.rotationState,
+        altBreadth: previousOutput.alts.breadth,
+        derivativesFunding: previousOutput.derivatives.funding,
+        derivativesOi: previousOutput.derivatives.oi,
+        derivativesPositioning: previousOutput.derivatives.positioning,
+        upcomingEventTitles: previousOutput.events.upcoming.map((e) => e.title),
+      } : undefined;
+
       const input = this.inputBuilder.build({
         session,
         symbols,
@@ -137,6 +158,7 @@ export class OverviewRunner {
         tokenBudget: options.tokenBudget ?? DEFAULT_TOKEN_BUDGET,
         dataQuality,
         dataStatus,
+        previousBrief,
       });
 
       // 8. Save input snapshot
@@ -150,7 +172,12 @@ export class OverviewRunner {
 
       // 10. Generate overview
       const llmResult = await this.deps.llmClient.generateOverview(input);
-      const output = llmResult.output;
+      const output = {
+        ...llmResult.output,
+        whatChanged: previousOutput !== null
+          ? computeWhatChanged(previousOutput, llmResult.output)
+          : firstBriefBullets(),
+      };
 
       // 11. Format
       const humanReport = this.formatter.format(output);

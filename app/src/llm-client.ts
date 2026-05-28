@@ -20,8 +20,12 @@ STRICT RULES — violation causes the response to be rejected:
    summary — do not invent data.
 6. Timeframes: only Weekly, Daily, 4H, Session. Never reference 1H, 15m, 5m.
 7. scenarios must always contain all three fields: reclaim, rejection, chop.
-8. whatChanged must have 1–8 items. If no previous brief data is in the input, use exactly:
+8. whatChanged: if input.previousBrief is present, list 1–8 concise bullets describing what changed
+   vs that prior brief (regime, structure, key level breaks, new/removed events, etc.).
+   If input.previousBrief is absent, use exactly:
    ["No previous brief available for this session — initial reading."]
+   NOTE: the runner post-processes whatChanged deterministically — your output is used as a fallback
+   only. Prefer accurate, concise bullets over the fallback string.
 
 Required JSON schema (all fields required):
 {

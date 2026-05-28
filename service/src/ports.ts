@@ -102,6 +102,22 @@ export type DataStatus = {
   liquidations: DataStatusValue;
 };
 
+export type PreviousBriefContext = {
+  generatedAtUtc: string;
+  marketRegime: MarketRegime;
+  briefConfidence: 'low' | 'medium' | 'high';
+  btcStructure: 'bullish' | 'bearish' | 'range' | 'transition' | 'unknown';
+  btcPosition: string;
+  btcSummary: string;
+  ethVsbtc: string;
+  altRotationState: 'broad_rotation' | 'selective_rotation' | 'no_rotation' | 'weak' | 'unknown';
+  altBreadth: string;
+  derivativesFunding: string;
+  derivativesOi: string;
+  derivativesPositioning: string;
+  upcomingEventTitles: string[];
+};
+
 export type OverviewInput = {
   request: {
     session: CryptoSession;
@@ -129,6 +145,7 @@ export type OverviewInput = {
   activeSetups: ActiveOverviewSetup[];
   dataQuality: DataQualityInfo;
   dataStatus?: DataStatus;
+  previousBrief?: PreviousBriefContext;
 };
 
 export type DataStatusValue = 'fresh' | 'stale' | 'partial' | 'failed' | 'unavailable';

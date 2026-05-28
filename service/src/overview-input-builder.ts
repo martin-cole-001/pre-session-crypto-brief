@@ -8,6 +8,7 @@ import type {
   HtfLevelsSnapshot,
   DataQualityInfo,
   DataStatus,
+  PreviousBriefContext,
 } from './ports.js';
 
 export class OverviewInputBuilder {
@@ -23,6 +24,7 @@ export class OverviewInputBuilder {
     tokenBudget: number;
     dataQuality: DataQualityInfo;
     dataStatus?: DataStatus;
+    previousBrief?: PreviousBriefContext;
   }): OverviewInput {
     const btcSnapshot = params.marketSnapshots.find((s) => s.symbol === 'BTCUSDT');
     const ethSnapshot = params.marketSnapshots.find((s) => s.symbol === 'ETHUSDT');
@@ -58,6 +60,7 @@ export class OverviewInputBuilder {
       activeSetups: params.activeSetups,
       dataQuality: params.dataQuality,
       ...(params.dataStatus !== undefined ? { dataStatus: params.dataStatus } : {}),
+      ...(params.previousBrief !== undefined ? { previousBrief: params.previousBrief } : {}),
     };
 
     // Apply token budget: truncate events and setups if needed
