@@ -1,0 +1,13 @@
+{
+  "name": "@trader-agent/session-overview-core",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "dependencies": {
+    "zod": "^3.23.0"
+  }
+}
