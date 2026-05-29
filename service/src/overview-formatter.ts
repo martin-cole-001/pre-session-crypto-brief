@@ -1,11 +1,5 @@
 import type { OverviewOutput, CryptoSession } from './ports.js';
 
-const SESSION_EMOJI: Record<CryptoSession, string> = {
-  ASIA_CRYPTO: '🌏',
-  EUROPE_CRYPTO: '🌍',
-  US_CRYPTO: '🌎',
-};
-
 const SESSION_LABEL: Record<CryptoSession, string> = {
   ASIA_CRYPTO: 'Asia',
   EUROPE_CRYPTO: 'Europe',
@@ -21,10 +15,10 @@ const IMPORTANCE_SYMBOL: Record<string, string> = {
   low: '🔵',
 };
 
-function toSofiaTime(utcIso: string): string {
+function toUtcDatetime(utcIso: string): string {
   const date = new Date(utcIso);
   return new Intl.DateTimeFormat('en-GB', {
-    timeZone: SOFIA_TZ,
+    timeZone: 'UTC',
     day: '2-digit',
     month: 'short',
     year: 'numeric',
@@ -34,29 +28,32 @@ function toSofiaTime(utcIso: string): string {
   }).format(date).replace(',', '');
 }
 
+function toSofiaHHmm(utcIso: string): string {
+  const date = new Date(utcIso);
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: SOFIA_TZ,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date);
+}
+
 export class OverviewFormatter {
   format(output: OverviewOutput): string {
     const { session } = output;
-    const emoji = SESSION_EMOJI[session];
     const label = SESSION_LABEL[session];
-    const sofiaTime = toSofiaTime(output.generatedAtUtc);
 
     const lines: string[] = [];
 
     // Header
-    lines.push(`${emoji} ${label} Crypto Brief  |  ${sofiaTime} Sofia`);
-    lines.push('');
-
-    // Data status
-    const { dataStatus } = output;
-    lines.push(
-      `📊 Price: ${dataStatus.price}  |  Events: ${dataStatus.events}  |  OI/Funding: ${dataStatus.derivatives}  |  Liq: ${dataStatus.liquidations}`,
-    );
+    lines.push(`Crypto ${label} Brief`);
+    lines.push(`Generated: ${toUtcDatetime(output.generatedAtUtc)} UTC / ${toSofiaHHmm(output.generatedAtUtc)} Sofia`);
     lines.push('');
 
     // Regime + confidence
     const regimeDisplay = output.marketRegime.replace(/_/g, ' ');
-    lines.push(`🔴 Regime: ${regimeDisplay}  |  Confidence: ${output.briefConfidence}`);
+    lines.push(`Market regime: ${regimeDisplay}`);
+    lines.push(`Brief confidence: ${output.briefConfidence}`);
     lines.push('');
 
     // What changed
@@ -109,6 +106,13 @@ export class OverviewFormatter {
     );
     if (output.derivatives.summary.trim() !== '') {
       lines.push(output.derivatives.summary);
+    }
+    lines.push('');
+
+    // Liquidity
+    lines.push('Liquidity:');
+    for (const b of output.liquidity.bullets) {
+      lines.push(`* ${b}`);
     }
     lines.push('');
 

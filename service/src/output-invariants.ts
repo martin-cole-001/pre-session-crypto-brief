@@ -29,6 +29,7 @@ function collectWrittenStrings(output: OverviewOutput): string[] {
     output.derivatives.funding,
     output.derivatives.oi,
     output.derivatives.positioning,
+    ...(output.liquidity?.bullets ?? []),
     output.events.summary,
     ...output.events.upcoming.map((e) => e.title),
     output.scenarios.reclaim,
@@ -57,6 +58,8 @@ export function checkOutputInvariants(output: OverviewOutput): string[] {
 
   if (output.whatChanged.length < 1) violations.push('whatChanged must have at least 1 item');
   if (output.whatChanged.length > 8) violations.push('whatChanged must have at most 8 items');
+
+  if (!output.liquidity?.bullets?.length) violations.push('liquidity.bullets must be non-empty');
 
   if (!output.scenarios.reclaim) violations.push('scenarios.reclaim must be non-empty');
   if (!output.scenarios.rejection) violations.push('scenarios.rejection must be non-empty');

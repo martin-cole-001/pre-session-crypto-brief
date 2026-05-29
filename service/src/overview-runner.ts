@@ -1,9 +1,9 @@
 import type { SessionOverviewDeps } from './service-types.js';
 import type { OverviewRunOptions, OverviewRunResult } from './service-types.js';
-import type { NormalizedEvent, CollectorRunRecord, DataQualityInfo, HtfLevelsSnapshot, PreviousBriefContext } from './ports.js';
+import type { NormalizedEvent, CollectorRunRecord, DataQualityInfo, HtfLevelsSnapshot, PreviousBriefContext, CollectorRunContext } from './ports.js';
 import { OverviewInputBuilder } from './overview-input-builder.js';
 import { OverviewFormatter } from './overview-formatter.js';
-import { computeDataStatus } from './source-health-evaluator.js';
+import { computeDataStatus, buildSourceHealthSummary } from './source-health-evaluator.js';
 import { computeWhatChanged, firstBriefBullets } from './brief-diff-engine.js';
 import { classifyMarketRegime } from './market-regime-classifier.js';
 import { analyzeAltsBreadth } from './alts-breadth-analyzer.js';
@@ -130,7 +130,9 @@ export class OverviewRunner {
         .map((r) => r.collectorName);
       const collectorQuality = collectorRuns.map((r) => ({
         name: r.collectorName,
-        status: r.status === 'SUCCESS' ? 'success' as const : r.status === 'FAILED' ? 'failed' as const : 'partial' as const,
+        status: r.status === 'SUCCESS' ? 'success' as const
+          : r.status === 'SKIPPED' ? 'skipped' as const
+          : 'failed' as const,
         itemCount: r.itemCount,
         ...(r.errorMessage !== undefined ? { error: r.errorMessage } : {}),
       }));
@@ -207,21 +209,89 @@ export class OverviewRunner {
         crossMarket,
       });
 
-      // 8. Save input snapshot
-      const inputSnapshotId = await repository.saveInputSnapshot(session, input);
+      // 7c. Run context collectors (liquidity, ETF flows, options, macro rates)
+      const sessionBoundary = getSessionBoundaryForDate(session, new Date());
+      const runCtx: CollectorRunContext = {
+        session,
+        now: new Date(),
+        timezone: 'UTC',
+        symbols,
+        sessionWindow: {
+          start: new Date(sessionBoundary.startMs),
+          end: new Date(sessionBoundary.endMs),
+        },
+        lookaheadHours: 24,
+      };
 
-      // 9. Save collector runs and events
+      let augmentedInput = input;
+      const contextRunRecords: CollectorRunRecord[] = [];
+
+      for (const { collector, merge } of this.deps.contextCollectors ?? []) {
+        const t0 = Date.now();
+        try {
+          const result = await collector.collect(runCtx);
+          augmentedInput = merge(augmentedInput, result);
+          contextRunRecords.push({
+            collectorName: collector.sourceName,
+            startedAt: new Date(t0),
+            finishedAt: new Date(),
+            status: result.status === 'success' ? 'SUCCESS'
+              : result.status === 'skipped' ? 'SKIPPED'
+              : 'FAILED',
+            itemCount: result.itemCount,
+            ...(result.error !== undefined ? { errorMessage: result.error } : {}),
+            durationMs: Date.now() - t0,
+          });
+        } catch (err) {
+          logger.warn({ collector: collector.sourceName, err }, 'Context collector failed');
+          contextRunRecords.push({
+            collectorName: collector.sourceName,
+            startedAt: new Date(t0),
+            finishedAt: new Date(),
+            status: 'FAILED',
+            itemCount: 0,
+            errorMessage: err instanceof Error ? err.message : String(err),
+            durationMs: Date.now() - t0,
+          });
+        }
+      }
+
+      // Build source health summary across all collectors
+      const allCollectorQuality = [
+        ...collectorQuality,
+        ...contextRunRecords.map((r) => ({
+          name: r.collectorName,
+          status: r.status === 'SUCCESS' ? 'success' as const
+            : r.status === 'SKIPPED' ? 'skipped' as const
+            : 'failed' as const,
+          itemCount: r.itemCount,
+          ...(r.errorMessage !== undefined ? { error: r.errorMessage } : {}),
+        })),
+      ];
+      const sourceHealth = buildSourceHealthSummary(allCollectorQuality);
+      augmentedInput = { ...augmentedInput, sourceHealth };
+
+      // 8. Save input snapshot
+      const inputSnapshotId = await repository.saveInputSnapshot(session, augmentedInput);
+
+      // 9. Save collector runs (event collectors + context collectors) and events
       await Promise.all([
-        ...collectorRuns.map((r) => repository.saveCollectorRun(r)),
+        ...[...collectorRuns, ...contextRunRecords].map((r) => repository.saveCollectorRun(r)),
         repository.saveCollectedEvents(allEvents),
       ]);
 
       // 10. Generate overview
-      const llmResult = await this.deps.llmClient.generateOverview(input);
+      const llmResult = await this.deps.llmClient.generateOverview(augmentedInput);
       const output = {
         ...llmResult.output,
         marketRegime: precomputedRegime.marketRegime,
         briefConfidence: precomputedRegime.briefConfidence,
+        // Use deterministic computed dataStatus, not LLM interpretation
+        dataStatus,
+        // Fallback liquidity if LLM did not generate it (transitional guard)
+        liquidity: llmResult.output.liquidity ?? {
+          bullets: ['No confirmed liquidity cluster data available for this session.'],
+        },
         alts: {
           ...llmResult.output.alts,
           rotationState: altsBreadth.rotationState !== 'unknown'
@@ -273,6 +343,7 @@ export class OverviewRunner {
         inputSnapshotId,
         telegramPostIds,
         model: this.deps.llmClient.modelName,
+        sourceHealth,
       });
 
       // 13. Save LLM usage if available
@@ -289,6 +360,7 @@ export class OverviewRunner {
       }
 
       // 14. Publish if requested
+      let telegramPublished = false;
       if (options.publish === true && this.deps.publisher !== undefined) {
         try {
           const chunks = this.formatter.splitForTelegram(humanReport);
@@ -309,9 +381,16 @@ export class OverviewRunner {
           }
           // Update existing overview row with post IDs (no duplicate insert)
           await repository.updateOverviewTelegramPosts(overviewId, telegramPostIds);
+          telegramPublished = telegramPostIds.length > 0;
         } catch (err) {
           logger.warn({ err }, 'Publishing failed — overview saved but not published');
         }
+      }
+
+      const collectorStatus: Record<string, 'success' | 'failed' | 'skipped'> = {};
+      for (const run of collectorRuns) {
+        collectorStatus[run.collectorName] =
+          run.status === 'SUCCESS' ? 'success' : run.status === 'SKIPPED' ? 'skipped' : 'failed';
       }
 
       logger.info({ session, overviewId, durationMs: Date.now() - startedAt }, 'Overview run complete');
@@ -324,6 +403,10 @@ export class OverviewRunner {
         humanReport,
         ...(telegramPostIds.length > 0 ? { telegramPostIds } : {}),
         durationMs: Date.now() - startedAt,
+        telegramPublished,
+        marketRegime: output.marketRegime,
+        briefConfidence: output.briefConfidence,
+        collectorStatus,
       };
     } catch (err) {
       logger.error({ session, err }, 'Overview run failed');
@@ -346,13 +429,30 @@ export class OverviewRunner {
             alts: { summary: 'Data unavailable.', rotationState: 'unknown', breadth: 'data unavailable' },
             derivatives: { summary: 'Data unavailable.', funding: 'data unavailable', oi: 'data unavailable', positioning: 'data unavailable' },
             events: { summary: 'Data unavailable.', upcoming: [] },
+            liquidity: { bullets: ['No confirmed liquidity cluster data available for this session.'] },
             scenarios: { reclaim: 'No data.', rejection: 'No data.', chop: 'No data.' },
             note: `Run failed: ${errorMessage}`,
           },
         });
-        return { overviewId, session, status: 'FAILED', durationMs: Date.now() - startedAt, error: errorMessage };
+        return {
+          overviewId,
+          session,
+          status: 'FAILED',
+          durationMs: Date.now() - startedAt,
+          error: errorMessage,
+          telegramPublished: false,
+          collectorStatus: {},
+        };
       } catch {
-        return { overviewId: 'unknown', session, status: 'FAILED', durationMs: Date.now() - startedAt, error: errorMessage };
+        return {
+          overviewId: 'unknown',
+          session,
+          status: 'FAILED',
+          durationMs: Date.now() - startedAt,
+          error: errorMessage,
+          telegramPublished: false,
+          collectorStatus: {},
+        };
       }
     }
   }

@@ -8,15 +8,32 @@ import { SecRssCollector } from './collectors/sec-rss.collector.js';
 import { CoinMarketCalCollector } from './collectors/coinmarketcal.collector.js';
 import { BinanceAnnouncementsCollector } from './collectors/binance-announcements.collector.js';
 import { TokenUnlocksCollector } from './collectors/token-unlocks.collector.js';
+import { MobulaUnlocksCollector } from './collectors/mobula-unlocks.collector.js';
+import { DeribitOptionsCollector } from './collectors/deribit-options.collector.js';
+import { FarsideEtfCollector } from './collectors/farside-etf.collector.js';
+import { CoinGeckoBreadthCollector } from './collectors/coingecko-breadth.collector.js';
+import { FredRatesCollector } from './collectors/fred-rates.collector.js';
+import { BeaGdpCollector } from './collectors/bea-gdp.collector.js';
+import { DefiLlamaStablecoinsCollector } from './collectors/defillama-stablecoins.collector.js';
+import { DefiLlamaChainsCollector } from './collectors/defillama-chains.collector.js';
 import { AnthropicLlmClient } from './llm-client.js';
 import { PrismaSessionOverviewRepository } from './repository.js';
 import { TelegramPublisher } from './telegram-publisher.js';
 import { PrismaActiveSetupsLoader } from './setup-loader/active-setups-loader.js';
 import { SessionOverviewService } from '../../service/src/session-overview.service.js';
 import { OverviewRunner } from '../../service/src/overview-runner.js';
+import {
+  mergeMacroRatesContext,
+  mergeStablecoinContext,
+  mergeChainFlowContext,
+  mergeOptionsContext,
+  mergeEtfFlowContext,
+  mergeBreadthContext,
+  contextCollectorEntry,
+} from '../../service/src/context-merge.js';
 import type { AppConfig } from './config.js';
 import type { LoggerLike } from '../../service/src/ports.js';
-import type { SessionOverviewDeps } from '../../service/src/service-types.js';
+import type { SessionOverviewDeps, ContextCollectorEntry } from '../../service/src/service-types.js';
 
 export function wire(config: AppConfig, logger: LoggerLike): SessionOverviewService {
   const bybitClient = new BybitHttpClient(
@@ -33,12 +50,32 @@ export function wire(config: AppConfig, logger: LoggerLike): SessionOverviewServ
     new BlsCalendarCollector(),
     new SecRssCollector(),
     new BinanceAnnouncementsCollector(),
-    new TokenUnlocksCollector(),
+    // Mobula replaces the plain DefiLlama unlock collector when API key is set
+    ...(config.mobula !== undefined
+      ? [new MobulaUnlocksCollector(config.mobula.apiKey, [
+          ...config.symbols.core, ...config.symbols.major,
+        ])]
+      : [new TokenUnlocksCollector()]),
   ];
 
   const coinmarketcalApiKey = process.env['COINMARKETCAL_API_KEY'];
   if (coinmarketcalApiKey !== undefined && coinmarketcalApiKey !== '') {
     eventCollectors.push(new CoinMarketCalCollector(coinmarketcalApiKey));
+  }
+
+  // Context collectors — always-on (public), or gated on API keys (FRED, BEA)
+  const contextCollectors: ContextCollectorEntry[] = [
+    contextCollectorEntry(new DefiLlamaStablecoinsCollector(), mergeStablecoinContext),
+    contextCollectorEntry(new DefiLlamaChainsCollector(), mergeChainFlowContext),
+    contextCollectorEntry(new DeribitOptionsCollector(), mergeOptionsContext),
+    contextCollectorEntry(new FarsideEtfCollector(), mergeEtfFlowContext),
+    contextCollectorEntry(new CoinGeckoBreadthCollector(), mergeBreadthContext),
+  ];
+  if (config.fred !== undefined) {
+    contextCollectors.push(contextCollectorEntry(new FredRatesCollector(config.fred.apiKey), mergeMacroRatesContext));
+  }
+  if (config.bea !== undefined) {
+    contextCollectors.push(contextCollectorEntry(new BeaGdpCollector(config.bea.apiKey), mergeMacroRatesContext));
   }
 
   const llmClient = new AnthropicLlmClient(config.anthropic.apiKey, config.anthropic.model);
@@ -49,6 +86,7 @@ export function wire(config: AppConfig, logger: LoggerLike): SessionOverviewServ
     marketDataCollector,
     derivativesCollector,
     eventCollectors,
+    contextCollectors,
     setupLoader,
     llmClient,
     repository,

@@ -31,6 +31,10 @@ STRICT RULES — violation causes the response to be rejected:
 4f. eth.vsbtc is pre-computed — copy it VERBATIM from input.crossMarket.ethBtcTrendLabel if
     present and not "data unavailable". Use input.crossMarket.dominanceLabel and
     topOutperformers/topUnderperformers as context for the eth.summary and majorAssets sections.
+4g. liquidity.bullets: write 2-5 concise bullets describing key liquidity areas — immediate upside
+    resistance/supply, recovery zones, larger magnet areas (options, CME gaps, round levels), and
+    downside vulnerability. If liquidation cluster data is unavailable, say so in one bullet and do
+    not fabricate cluster levels. Use only levels visible in input.levels and input.derivativesContext.
 5. If a source status is "failed" or "unavailable", write "data unavailable" in that section's
    summary — do not invent data.
 6. Timeframes: only Weekly, Daily, 4H, Session. Never reference 1H, 15m, 5m.
@@ -80,6 +84,15 @@ Required JSON schema (all fields required):
     "funding": "string — e.g. 'positive elevated across BTC/ETH'",
     "oi": "string — e.g. 'rising slowly, no extreme buildup'",
     "positioning": "string — e.g. 'long-heavy but not at flush levels'"
+  },
+  "liquidity": {
+    "immediateUpside": "string — optional, e.g. '97,400 (weekly high / supply zone)'",
+    "recoveryZone": "string — optional, e.g. '95,800–96,200 (daily open / reclaim zone)'",
+    "largerUpsideMagnet": "string — optional, e.g. '100k (round level / options area)'",
+    "downsideVulnerability": "string — optional, e.g. 'below 95,800 session low'",
+    "bullets": [
+      "string — 2-5 bullets. Use 'No confirmed liquidation cluster data available.' if liq data missing."
+    ]
   },
   "events": {
     "summary": "string — overall macro/crypto event context, or 'No significant events for this session'",

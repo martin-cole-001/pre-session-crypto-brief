@@ -44,6 +44,9 @@ function makeOutput(overrides: Partial<OverviewOutput> = {}): OverviewOutput {
       oi: 'rising slowly',
       positioning: 'long-heavy',
     },
+    liquidity: {
+      bullets: ['Immediate upside resistance: 97,400.', 'Downside vulnerability below 95,800.'],
+    },
     events: {
       summary: 'Light macro calendar this session.',
       upcoming: [],
@@ -82,35 +85,34 @@ describe('OverviewFormatter.format()', () => {
     expect(result).toContain('long-heavy');
   });
 
-  it('includes the session emoji and label for ASIA_CRYPTO', () => {
+  it('header is desk-note format for ASIA_CRYPTO', () => {
     const result = formatter.format(makeOutput({ session: 'ASIA_CRYPTO' }));
-    expect(result).toContain('🌏');
-    expect(result).toContain('Asia');
+    expect(result).toContain('Crypto Asia Brief');
+    expect(result).toContain('Generated:');
   });
 
-  it('includes the session emoji and label for EUROPE_CRYPTO', () => {
+  it('header is desk-note format for EUROPE_CRYPTO', () => {
     const result = formatter.format(makeOutput({ session: 'EUROPE_CRYPTO' }));
-    expect(result).toContain('🌍');
-    expect(result).toContain('Europe');
+    expect(result).toContain('Crypto Europe Brief');
+    expect(result).toContain('Generated:');
   });
 
-  it('includes the session emoji and label for US_CRYPTO', () => {
+  it('header is desk-note format for US_CRYPTO', () => {
     const result = formatter.format(makeOutput({ session: 'US_CRYPTO' }));
-    expect(result).toContain('🌎');
-    expect(result).toContain('US');
+    expect(result).toContain('Crypto US Brief');
+    expect(result).toContain('Generated:');
   });
 
-  it('includes Sofia timestamp in header', () => {
+  it('header includes UTC time and Sofia time', () => {
     const result = formatter.format(makeOutput({ generatedAtUtc: '2026-05-18T22:30:00.000Z' }));
-    // 2026-05-18T22:30 UTC = 2026-05-19T01:30 Sofia (EEST = UTC+3)
+    expect(result).toContain('UTC');
     expect(result).toContain('Sofia');
   });
 
-  it('includes market regime and confidence', () => {
+  it('includes market regime and confidence on separate lines', () => {
     const result = formatter.format(makeOutput());
-    expect(result).toContain('Regime:');
-    expect(result).toContain('constructive but extended');
-    expect(result).toContain('Confidence: medium');
+    expect(result).toContain('Market regime: constructive but extended');
+    expect(result).toContain('Brief confidence: medium');
   });
 
   it('includes all three scenarios', () => {
@@ -120,11 +122,11 @@ describe('OverviewFormatter.format()', () => {
     expect(result).toContain('▶ Chop:');
   });
 
-  it('includes data status line', () => {
+  it('does not include data status line in Telegram output', () => {
     const result = formatter.format(makeOutput());
-    expect(result).toContain('Price: fresh');
-    expect(result).toContain('Events: partial');
-    expect(result).toContain('Liq: unavailable');
+    expect(result).not.toContain('Price: fresh');
+    expect(result).not.toContain('OI/Funding:');
+    expect(result).not.toContain('Liq: unavailable');
   });
 
   it('includes what changed bullets', () => {
@@ -137,6 +139,38 @@ describe('OverviewFormatter.format()', () => {
     const result = formatter.format(makeOutput());
     expect(result).toContain('97400');
     expect(result).toContain('95800');
+  });
+
+  it('includes liquidity section with bullets', () => {
+    const result = formatter.format(makeOutput());
+    expect(result).toContain('Liquidity:');
+    expect(result).toContain('* Immediate upside resistance: 97,400.');
+    expect(result).toContain('* Downside vulnerability below 95,800.');
+  });
+
+  it('renders multiple liquidity bullets', () => {
+    const output = makeOutput({
+      liquidity: { bullets: ['Bullet one.', 'Bullet two.', 'Bullet three.'] },
+    });
+    const result = formatter.format(output);
+    expect(result).toContain('* Bullet one.');
+    expect(result).toContain('* Bullet two.');
+    expect(result).toContain('* Bullet three.');
+  });
+
+  it('liquidity section appears after derivatives and before events', () => {
+    const output = makeOutput({
+      events: {
+        summary: 'FOMC today.',
+        upcoming: [{ title: 'FOMC', time: '21:00 UTC', importance: 'critical' }],
+      },
+    });
+    const result = formatter.format(output);
+    const derivPos = result.indexOf('📊 Derivatives');
+    const liqPos = result.indexOf('Liquidity:');
+    const eventsPos = result.indexOf('📅 Events');
+    expect(derivPos).toBeLessThan(liqPos);
+    expect(liqPos).toBeLessThan(eventsPos);
   });
 
   it('includes major assets section when non-empty', () => {

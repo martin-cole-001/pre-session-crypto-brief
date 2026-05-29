@@ -43,6 +43,9 @@ function makeValidOutput() {
       oi: 'rising slowly',
       positioning: 'long-heavy',
     },
+    liquidity: {
+      bullets: ['Immediate upside resistance: 97,400.', 'Downside vulnerability below 95,800.'],
+    },
     events: {
       summary: 'FOMC minutes later today.',
       upcoming: [
@@ -124,6 +127,35 @@ describe('OverviewOutputSchema', () => {
   it('throws when note is missing', () => {
     const invalid = { ...makeValidOutput(), note: undefined };
     expect(() => OverviewOutputSchema.parse(invalid)).toThrow();
+  });
+
+  it('throws when liquidity is missing', () => {
+    const invalid = { ...makeValidOutput(), liquidity: undefined };
+    expect(() => OverviewOutputSchema.parse(invalid)).toThrow();
+  });
+
+  it('throws when liquidity.bullets is empty (min 1)', () => {
+    const invalid = { ...makeValidOutput(), liquidity: { bullets: [] } };
+    expect(() => OverviewOutputSchema.parse(invalid)).toThrow();
+  });
+
+  it('parses liquidity with optional fields absent', () => {
+    const valid = { ...makeValidOutput(), liquidity: { bullets: ['Upside: 97,400.'] } };
+    expect(() => OverviewOutputSchema.parse(valid)).not.toThrow();
+  });
+
+  it('parses liquidity with all optional fields present', () => {
+    const valid = {
+      ...makeValidOutput(),
+      liquidity: {
+        immediateUpside: '97,400',
+        recoveryZone: '95,800–97,400',
+        largerUpsideMagnet: '100k',
+        downsideVulnerability: 'below 95,800',
+        bullets: ['Upside: 97,400.'],
+      },
+    };
+    expect(() => OverviewOutputSchema.parse(valid)).not.toThrow();
   });
 
   it('accepts all valid marketRegime values', () => {

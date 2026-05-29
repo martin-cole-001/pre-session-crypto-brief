@@ -62,6 +62,7 @@ function relevanceScoreFor(eventType: NormalizedEventType): number {
 }
 
 function importanceFor(percentage: number): 'critical' | 'high' | 'medium' | 'low' {
+  if (percentage >= 90) return 'critical';
   if (percentage >= 80) return 'high';
   if (percentage >= 50) return 'medium';
   return 'low';
@@ -95,7 +96,6 @@ export class CoinMarketCalCollector implements EventCollector {
       max: '50',
       dateRangeStart: formatDate(now),
       dateRangeEnd: formatDate(end),
-      coins: 'bitcoin,ethereum',
     });
 
     const response = await fetch(`${API_BASE}?${params.toString()}`, {

@@ -84,7 +84,7 @@ export type HtfLevelsSnapshot = {
 
 export type CollectorDataQuality = {
   name: string;
-  status: 'success' | 'partial' | 'failed';
+  status: 'success' | 'partial' | 'failed' | 'skipped';
   itemCount: number;
   error?: string;
 };
@@ -156,6 +156,88 @@ export type PreviousBriefContext = {
   upcomingEventTitles: string[];
 };
 
+// ─── Context collector ports ──────────────────────────────────────────────────
+
+export type CollectorRunContext = {
+  session: CryptoSession;
+  now: Date;
+  timezone: string;
+  symbols: { core: string[]; major: string[]; watch: string[] };
+  sessionWindow: { start: Date; end: Date };
+  lookaheadHours: number;
+};
+
+export type CollectorResult<T> = {
+  status: 'success' | 'partial' | 'failed' | 'skipped';
+  data?: T;
+  error?: string;
+  itemCount: number;
+};
+
+export interface ContextCollector<TContext> {
+  readonly sourceName: string;
+  collect(ctx: CollectorRunContext): Promise<CollectorResult<TContext>>;
+}
+
+// ─── Structured context types returned by ContextCollectors ──────────────────
+
+export type LiquidityContext = {
+  clusters: { price: number; side: 'long' | 'short'; estimatedSizeUsd: number }[];
+  dataFreshnessSeconds?: number;
+};
+
+export type EtfFlowContext = {
+  btcFlowUsd?: number;
+  ethFlowUsd?: number;
+  date: string;
+  source: string;
+};
+
+export type OptionsContext = {
+  symbol: string;
+  putCallRatio?: number;
+  impliedVol24h?: number;
+  maxPainStrike?: number;
+};
+
+export type MacroRatesContext = {
+  fedFundsRate?: number;
+  us10yYield?: number;
+  us2yYield?: number;
+  dxy?: number;
+  pceYoY?: number;
+  gdpGrowthQoQ?: number;
+  dataDate?: string;
+};
+
+export type StablecoinContext = {
+  totalSupplyUsd: number;
+  dayChangeUsd: number;
+  weekChangeUsd: number;
+  topStablecoins: { symbol: string; supplyUsd: number; pegStatus: 'pegged' | 'depegged' }[];
+  dataDate: string;
+};
+
+export type ChainFlowContext = {
+  totalTvlUsd: number;
+  dayChangePct: number;
+  weekChangePct: number;
+  topChains: { name: string; tvlUsd: number }[];
+  dataDate: string;
+};
+
+export type SourceHealthSummary = {
+  collectors: {
+    name: string;
+    status: 'success' | 'partial' | 'failed' | 'skipped';
+    itemCount: number;
+    error?: string;
+  }[];
+  healthyCount: number;
+  failedCount: number;
+  skippedCount: number;
+};
+
 export type OverviewInput = {
   request: {
     session: CryptoSession;
@@ -189,6 +271,13 @@ export type OverviewInput = {
   derivativesNarrative?: DerivativesNarrativeSummary;
   precomputedEvents?: PrecomputedEvents;
   crossMarket?: CrossMarketSummary;
+  liquidityContext?: LiquidityContext;
+  etfFlowContext?: EtfFlowContext;
+  optionsContext?: OptionsContext[];
+  macroRatesContext?: MacroRatesContext;
+  stablecoinContext?: StablecoinContext;
+  chainFlowContext?: ChainFlowContext;
+  sourceHealth?: SourceHealthSummary;
 };
 
 export type DataStatusValue = 'fresh' | 'stale' | 'partial' | 'failed' | 'unavailable';
@@ -233,6 +322,13 @@ export type OverviewOutput = {
     funding: string;
     oi: string;
     positioning: string;
+  };
+  liquidity: {
+    immediateUpside?: string;
+    recoveryZone?: string;
+    largerUpsideMagnet?: string;
+    downsideVulnerability?: string;
+    bullets: string[];
   };
   events: {
     summary: string;
@@ -318,6 +414,7 @@ export type OverviewRecord = {
   telegramPostIds?: string[];
   promptVersion?: string;
   model?: string;
+  sourceHealth?: SourceHealthSummary;
   createdAt?: Date;
 };
 
@@ -351,8 +448,18 @@ export type LlmUsageRecord = {
 export type EventFilters = {
   session?: CryptoSession;
   eventType?: string;
+  asset?: string;
+  source?: string;
+  category?: string;
+  importance?: string;
   limit?: number;
   fromDate?: Date;
+};
+
+export type TelegramPostFilters = {
+  overviewId?: string;
+  session?: string;
+  limit?: number;
 };
 
 export type CollectorRunFilters = {
@@ -375,6 +482,7 @@ export interface SessionOverviewRepository {
   getOverviewById(id: string): Promise<OverviewRecord | null>;
   listEvents(filters: EventFilters): Promise<NormalizedEvent[]>;
   listCollectorRuns(filters: CollectorRunFilters): Promise<CollectorRunRecord[]>;
+  listTelegramPosts(filters: TelegramPostFilters): Promise<TelegramPostRecord[]>;
 }
 
 // ─── Publisher port ────────────────────────────────────────────────────────────

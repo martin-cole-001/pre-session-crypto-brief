@@ -4,6 +4,9 @@ export type AppConfig = {
     apiKey: string;
     apiSecret: string;
   };
+  fred?: { apiKey: string };
+  bea?: { apiKey: string };
+  mobula?: { apiKey: string };
   anthropic: {
     apiKey: string;
     model: string;
@@ -74,7 +77,14 @@ export function loadConfig(): AppConfig {
     throw new Error(`Invalid PORT value: ${portRaw}`);
   }
 
+  const fredApiKey = optionalEnv('FRED_API_KEY', '');
+  const beaApiKey = optionalEnv('BEA_API_KEY', '');
+  const mobulaApiKey = optionalEnv('MOBULA_API_KEY', '');
+
   return {
+    ...(fredApiKey !== '' ? { fred: { apiKey: fredApiKey } } : {}),
+    ...(beaApiKey !== '' ? { bea: { apiKey: beaApiKey } } : {}),
+    ...(mobulaApiKey !== '' ? { mobula: { apiKey: mobulaApiKey } } : {}),
     bybit: {
       baseUrl: optionalEnv('BYBIT_BASE_URL', 'https://api.bybit.com'),
       apiKey: bybitApiKey,

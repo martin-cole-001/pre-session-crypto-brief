@@ -7,6 +7,8 @@ import type {
   CollectorRunFilters,
   NormalizedEvent,
   CollectorRunRecord,
+  TelegramPostFilters,
+  TelegramPostRecord,
 } from './ports.js';
 import type { OverviewRunOptions, OverviewRunResult } from './service-types.js';
 import { OverviewRunner } from './overview-runner.js';
@@ -39,5 +41,9 @@ export class SessionOverviewService {
 
   async listCollectorRuns(filters: CollectorRunFilters): Promise<CollectorRunRecord[]> {
     return this.repository.listCollectorRuns(filters);
+  }
+
+  async listTelegramPosts(filters: TelegramPostFilters): Promise<TelegramPostRecord[]> {
+    return this.repository.listTelegramPosts(filters);
   }
 }

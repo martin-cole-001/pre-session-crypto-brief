@@ -11,12 +11,21 @@ import type {
   SessionOverviewRepository,
   OverviewPublisher,
   LoggerLike,
+  ContextCollector,
+  CollectorResult,
+  OverviewInput,
 } from './ports.js';
+
+export type ContextCollectorEntry = {
+  collector: ContextCollector<unknown>;
+  merge: (input: OverviewInput, result: CollectorResult<unknown>) => OverviewInput;
+};
 
 export type SessionOverviewDeps = {
   marketDataCollector: MarketDataCollector;
   derivativesCollector: DerivativesCollector;
   eventCollectors: EventCollector[];
+  contextCollectors?: ContextCollectorEntry[];
   setupLoader?: ActiveSetupsLoader;
   llmClient: LlmOverviewClient;
   repository: SessionOverviewRepository;
@@ -44,6 +53,10 @@ export type OverviewRunResult = {
   telegramPostIds?: string[];
   durationMs: number;
   error?: string;
+  telegramPublished: boolean;
+  marketRegime?: string;
+  briefConfidence?: string;
+  collectorStatus: Record<string, 'success' | 'failed' | 'skipped'>;
 };
 
 export type { OverviewRecord, OverviewFilters };

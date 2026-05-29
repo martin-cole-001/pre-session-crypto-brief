@@ -16,6 +16,7 @@ function makeOutput(overrides: Partial<OverviewOutput> = {}): OverviewOutput {
     majorAssets: [],
     alts: { summary: 'Alts quiet.', rotationState: 'selective_rotation', breadth: '55% of 10 tracked alts positive on 24h' },
     derivatives: { summary: 'Neutral overall.', funding: 'neutral across BTC/ETH', oi: 'stable across BTC/ETH', positioning: 'balanced across BTC/ETH' },
+    liquidity: { bullets: ['No significant liquidity clusters identified.'] },
     events: { summary: 'Light macro calendar.', upcoming: [{ title: 'CPI Release', time: '2026-01-02T13:30:00Z', importance: 'critical' }] },
     scenarios: { reclaim: 'Continuation toward ATH.', rejection: 'Pullback to support.', chop: 'Range persists.' },
     note: 'No caveats.',
@@ -118,6 +119,25 @@ describe('checkOutputInvariants()', () => {
 
   it('accepts whatChanged with exactly 8 items', () => {
     const output = makeOutput({ whatChanged: Array(8).fill('change') });
+    expect(checkOutputInvariants(output)).toHaveLength(0);
+  });
+
+  it('flags empty liquidity bullets', () => {
+    const output = makeOutput({ liquidity: { bullets: [] } });
+    const violations = checkOutputInvariants(output);
+    expect(violations.some((v) => v.includes('liquidity.bullets'))).toBe(true);
+  });
+
+  it('flags missing liquidity field', () => {
+    const output = makeOutput({ liquidity: undefined as unknown as { bullets: string[] } });
+    const violations = checkOutputInvariants(output);
+    expect(violations.some((v) => v.includes('liquidity.bullets'))).toBe(true);
+  });
+
+  it('accepts valid liquidity bullets', () => {
+    const output = makeOutput({
+      liquidity: { bullets: ['Immediate upside resistance: 97,400.'] },
+    });
     expect(checkOutputInvariants(output)).toHaveLength(0);
   });
 

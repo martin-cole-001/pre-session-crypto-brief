@@ -18,13 +18,21 @@ model SessionOverview {
   telegramPostIds String   @default("[]")
   promptVersion   String?
   model           String?
-  // Extracted for queryability (Patch 3)
+  // Extracted for queryability
   marketRegime    String?
   briefConfidence String?
   dataStatusJson  String?
   whatChangedJson String?
   scenariosJson   String?
-  createdAt       DateTime @default(now())
+  // Section payloads (Patch 3A)
+  sourceHealthJson String?
+  liquidityJson    String?
+  eventsJson       String?
+  scenarioMapJson  String?
+  crossMarketJson  String?
+  etfFlowJson      String?
+  optionsJson      String?
+  createdAt        DateTime @default(now())
 }
 
 model OverviewInput {
@@ -44,13 +52,17 @@ model CollectedEvent {
   relevanceScore Float
   dedupeKey      String
   rawJson        String
-  // Extracted for querying without parsing rawJson (Patch 3)
-  asset          String?
-  exchange       String?
-  scheduledTime  String?
-  importance     String?
-  confidence     String?
-  collectedAt    DateTime @default(now())
+  // Extracted for querying without parsing rawJson
+  asset            String?
+  exchange         String?
+  scheduledTime    String?
+  importance       String?
+  confidence       String?
+  // Patch 3A additions
+  duplicateGroupId String?
+  sessionImpact    String?
+  detectedAt       DateTime?
+  collectedAt      DateTime  @default(now())
 }
 
 model CollectorRun {
@@ -62,9 +74,11 @@ model CollectorRun {
   itemCount            Int
   errorMessage         String?
   durationMs           Int?
-  // Patch 3 additions
   dataFreshnessSeconds Int?
   fallbackUsed         Boolean?
+  // Patch 3A additions
+  source               String?
+  payloadHash          String?
   createdAt            DateTime  @default(now())
 }
 

@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { computeDataStatus } from '../src/source-health-evaluator.js';
+import { computeDataStatus, buildSourceHealthSummary } from '../src/source-health-evaluator.js';
 import type { CollectorDataQuality } from '../src/ports.js';
 
 function makeCollector(
-  status: 'success' | 'partial' | 'failed',
+  status: 'success' | 'partial' | 'failed' | 'skipped',
   itemCount: number,
   name = 'test-collector',
 ): CollectorDataQuality {
@@ -121,5 +121,50 @@ describe('computeDataStatus()', () => {
     expect(result).toHaveProperty('events');
     expect(result).toHaveProperty('derivatives');
     expect(result).toHaveProperty('liquidations');
+  });
+});
+
+describe('buildSourceHealthSummary()', () => {
+  it('counts healthy, failed, and skipped collectors correctly', () => {
+    const collectors: CollectorDataQuality[] = [
+      makeCollector('success', 10, 'bybit'),
+      makeCollector('failed', 0, 'mobula'),
+      makeCollector('skipped', 0, 'farside'),
+      makeCollector('success', 3, 'coingecko'),
+    ];
+    const summary = buildSourceHealthSummary(collectors);
+    expect(summary.healthyCount).toBe(2);
+    expect(summary.failedCount).toBe(1);
+    expect(summary.skippedCount).toBe(1);
+  });
+
+  it('preserves collector name, status, and itemCount', () => {
+    const summary = buildSourceHealthSummary([makeCollector('success', 7, 'deribit')]);
+    expect(summary.collectors).toHaveLength(1);
+    expect(summary.collectors[0]).toMatchObject({ name: 'deribit', status: 'success', itemCount: 7 });
+  });
+
+  it('includes error field only when present', () => {
+    const withError: CollectorDataQuality = { name: 'bea', status: 'failed', itemCount: 0, error: 'timeout' };
+    const withoutError: CollectorDataQuality = { name: 'fred', status: 'success', itemCount: 2 };
+    const summary = buildSourceHealthSummary([withError, withoutError]);
+    expect(summary.collectors[0]).toHaveProperty('error', 'timeout');
+    expect(summary.collectors[1]).not.toHaveProperty('error');
+  });
+
+  it('returns zeros when collector list is empty', () => {
+    const summary = buildSourceHealthSummary([]);
+    expect(summary.healthyCount).toBe(0);
+    expect(summary.failedCount).toBe(0);
+    expect(summary.skippedCount).toBe(0);
+    expect(summary.collectors).toHaveLength(0);
+  });
+
+  it('handles partial status — not counted in healthy, failed, or skipped', () => {
+    const summary = buildSourceHealthSummary([makeCollector('partial', 2, 'defillama')]);
+    expect(summary.healthyCount).toBe(0);
+    expect(summary.failedCount).toBe(0);
+    expect(summary.skippedCount).toBe(0);
+    expect(summary.collectors[0]?.status).toBe('partial');
   });
 });

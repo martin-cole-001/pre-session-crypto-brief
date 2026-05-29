@@ -1,4 +1,4 @@
-import type { CollectorDataQuality, DataStatusValue } from './ports.js';
+import type { CollectorDataQuality, DataStatusValue, SourceHealthSummary } from './ports.js';
 
 export type ComputedDataStatus = {
   price: DataStatusValue;
@@ -6,6 +6,20 @@ export type ComputedDataStatus = {
   derivatives: DataStatusValue;
   liquidations: DataStatusValue;
 };
+
+export function buildSourceHealthSummary(collectors: CollectorDataQuality[]): SourceHealthSummary {
+  return {
+    collectors: collectors.map((c) => ({
+      name: c.name,
+      status: c.status,
+      itemCount: c.itemCount,
+      ...(c.error !== undefined ? { error: c.error } : {}),
+    })),
+    healthyCount: collectors.filter((c) => c.status === 'success').length,
+    failedCount: collectors.filter((c) => c.status === 'failed').length,
+    skippedCount: collectors.filter((c) => c.status === 'skipped').length,
+  };
+}
 
 export function computeDataStatus(params: {
   priceOk: boolean;

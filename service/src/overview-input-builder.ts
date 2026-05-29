@@ -14,6 +14,13 @@ import type {
   DerivativesNarrativeSummary,
   PrecomputedEvents,
   CrossMarketSummary,
+  LiquidityContext,
+  EtfFlowContext,
+  OptionsContext,
+  MacroRatesContext,
+  StablecoinContext,
+  ChainFlowContext,
+  SourceHealthSummary,
 } from './ports.js';
 
 export class OverviewInputBuilder {
@@ -35,6 +42,13 @@ export class OverviewInputBuilder {
     derivativesNarrative?: DerivativesNarrativeSummary;
     precomputedEvents?: PrecomputedEvents;
     crossMarket?: CrossMarketSummary;
+    liquidityContext?: LiquidityContext;
+    etfFlowContext?: EtfFlowContext;
+    optionsContext?: OptionsContext[];
+    macroRatesContext?: MacroRatesContext;
+    stablecoinContext?: StablecoinContext;
+    chainFlowContext?: ChainFlowContext;
+    sourceHealth?: SourceHealthSummary;
   }): OverviewInput {
     const btcSnapshot = params.marketSnapshots.find((s) => s.symbol === 'BTCUSDT');
     const ethSnapshot = params.marketSnapshots.find((s) => s.symbol === 'ETHUSDT');
@@ -76,6 +90,13 @@ export class OverviewInputBuilder {
       ...(params.derivativesNarrative !== undefined ? { derivativesNarrative: params.derivativesNarrative } : {}),
       ...(params.precomputedEvents !== undefined ? { precomputedEvents: params.precomputedEvents } : {}),
       ...(params.crossMarket !== undefined ? { crossMarket: params.crossMarket } : {}),
+      ...(params.liquidityContext !== undefined ? { liquidityContext: params.liquidityContext } : {}),
+      ...(params.etfFlowContext !== undefined ? { etfFlowContext: params.etfFlowContext } : {}),
+      ...(params.optionsContext !== undefined ? { optionsContext: params.optionsContext } : {}),
+      ...(params.macroRatesContext !== undefined ? { macroRatesContext: params.macroRatesContext } : {}),
+      ...(params.stablecoinContext !== undefined ? { stablecoinContext: params.stablecoinContext } : {}),
+      ...(params.chainFlowContext !== undefined ? { chainFlowContext: params.chainFlowContext } : {}),
+      ...(params.sourceHealth !== undefined ? { sourceHealth: params.sourceHealth } : {}),
     };
 
     // Apply token budget: truncate events and setups if needed

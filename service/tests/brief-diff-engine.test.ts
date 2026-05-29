@@ -16,6 +16,7 @@ function makeOutput(overrides: Partial<OverviewOutput> = {}): OverviewOutput {
     majorAssets: [],
     alts: { summary: 'Alts quiet.', rotationState: 'selective_rotation', breadth: '55% green' },
     derivatives: { summary: 'Neutral.', funding: 'neutral', oi: 'stable', positioning: 'balanced' },
+    liquidity: { bullets: ['No significant liquidity clusters identified.'] },
     events: { summary: 'Light calendar.', upcoming: [{ title: 'CPI Release', time: '2026-01-02T13:30:00Z', importance: 'critical' }] },
     scenarios: { reclaim: 'Breakout continuation.', rejection: 'Pullback to support.', chop: 'Range persists.' },
     note: 'No caveats.',

@@ -8,6 +8,7 @@ import type {
   OverviewRecord,
   OverviewFilters,
   TelegramPostRecord,
+  TelegramPostFilters,
   LlmUsageRecord,
   EventFilters,
   CollectorRunFilters,
@@ -80,6 +81,7 @@ export class PrismaSessionOverviewRepository implements SessionOverviewRepositor
         telegramPostIds,
         ...(record.promptVersion !== undefined ? { promptVersion: record.promptVersion } : {}),
         ...(record.model !== undefined ? { model: record.model } : {}),
+        ...(record.sourceHealth !== undefined ? { sourceHealthJson: JSON.stringify(record.sourceHealth) } : {}),
         marketRegime: output.marketRegime,
         briefConfidence: output.briefConfidence,
         dataStatusJson: JSON.stringify(output.dataStatus),
@@ -161,6 +163,10 @@ export class PrismaSessionOverviewRepository implements SessionOverviewRepositor
     const rows = await this.prisma.collectedEvent.findMany({
       where: {
         ...(filters.eventType !== undefined ? { eventType: filters.eventType } : {}),
+        ...(filters.asset !== undefined ? { asset: filters.asset } : {}),
+        ...(filters.source !== undefined ? { source: filters.source } : {}),
+        ...(filters.category !== undefined ? { category: filters.category } : {}),
+        ...(filters.importance !== undefined ? { importance: filters.importance } : {}),
         ...(filters.fromDate !== undefined ? { collectedAt: { gte: filters.fromDate } } : {}),
       },
       orderBy: { collectedAt: 'desc' },
@@ -175,6 +181,25 @@ export class PrismaSessionOverviewRepository implements SessionOverviewRepositor
     }
 
     return events;
+  }
+
+  async listTelegramPosts(filters: TelegramPostFilters): Promise<TelegramPostRecord[]> {
+    const rows = await this.prisma.telegramOverviewPost.findMany({
+      where: {
+        ...(filters.overviewId !== undefined ? { overviewId: filters.overviewId } : {}),
+        ...(filters.session !== undefined ? { session: filters.session } : {}),
+      },
+      orderBy: { postedAt: 'desc' },
+      take: filters.limit ?? 20,
+    });
+    return rows.map((row) => ({
+      overviewId: row.overviewId,
+      messageId: row.messageId,
+      chatId: row.chatId,
+      session: row.session as CryptoSession,
+      ...(row.messageIndex !== null ? { messageIndex: row.messageIndex } : {}),
+      ...(row.text !== null ? { text: row.text } : {}),
+    }));
   }
 
   async listCollectorRuns(filters: CollectorRunFilters): Promise<CollectorRunRecord[]> {

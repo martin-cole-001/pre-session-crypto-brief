@@ -62,6 +62,14 @@ export const OverviewOutputSchema = z.object({
     positioning: z.string(),
   }),
 
+  liquidity: z.object({
+    immediateUpside: z.string().optional(),
+    recoveryZone: z.string().optional(),
+    largerUpsideMagnet: z.string().optional(),
+    downsideVulnerability: z.string().optional(),
+    bullets: z.array(z.string()).min(1),
+  }),
+
   events: z.object({
     summary: z.string(),
     upcoming: z.array(z.object({

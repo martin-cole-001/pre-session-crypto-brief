@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from 'express';
 import type { SessionOverviewService } from '../../service/src/session-overview.service.js';
-import type { OverviewFilters, EventFilters, CollectorRunFilters } from '../../service/src/ports.js';
+import type { OverviewFilters, EventFilters, CollectorRunFilters, TelegramPostFilters } from '../../service/src/ports.js';
 import {
   isValidSession,
   clampLimit,
@@ -73,7 +73,7 @@ export function createSessionOverviewRouter(service: SessionOverviewService): Ro
 
   // GET /events — list collected events
   router.get('/events', async (req: Request, res: Response): Promise<void> => {
-    const { session, eventType, limit, fromDate } = req.query;
+    const { session, eventType, asset, source, category, importance, limit, fromDate } = req.query;
     if (session !== undefined && !isValidSession(session)) {
       res.status(400).json({ error: 'Invalid session', code: 'INVALID_SESSION', validSessions: VALID_SESSIONS_LIST });
       return;
@@ -81,6 +81,10 @@ export function createSessionOverviewRouter(service: SessionOverviewService): Ro
     const filters: EventFilters = {
       ...(isValidSession(session) ? { session } : {}),
       ...(typeof eventType === 'string' ? { eventType } : {}),
+      ...(typeof asset === 'string' ? { asset } : {}),
+      ...(typeof source === 'string' ? { source } : {}),
+      ...(typeof category === 'string' ? { category } : {}),
+      ...(typeof importance === 'string' ? { importance } : {}),
       ...(clampLimit(limit) !== undefined ? { limit: clampLimit(limit) } : {}),
       ...(parseDateParam(fromDate) !== undefined ? { fromDate: parseDateParam(fromDate) } : {}),
     };
@@ -110,6 +114,26 @@ export function createSessionOverviewRouter(service: SessionOverviewService): Ro
     }
   });
 
+  // GET /telegram-posts — list posted Telegram messages
+  router.get('/telegram-posts', async (req: Request, res: Response): Promise<void> => {
+    const { session, overviewId, limit } = req.query;
+    if (session !== undefined && !isValidSession(session)) {
+      res.status(400).json({ error: 'Invalid session', code: 'INVALID_SESSION', validSessions: VALID_SESSIONS_LIST });
+      return;
+    }
+    const filters: TelegramPostFilters = {
+      ...(isValidSession(session) ? { session: session as string } : {}),
+      ...(typeof overviewId === 'string' ? { overviewId } : {}),
+      ...(clampLimit(limit) !== undefined ? { limit: clampLimit(limit) } : {}),
+    };
+    try {
+      const posts = await service.listTelegramPosts(filters);
+      res.status(200).json({ items: posts, count: posts.length });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
   // POST /overviews/trigger — manual trigger
   router.post('/overviews/trigger', async (req: Request, res: Response): Promise<void> => {
     const validation = validateTriggerBody(req.body);
@@ -119,7 +143,15 @@ export function createSessionOverviewRouter(service: SessionOverviewService): Ro
     }
     try {
       const result = await service.runSessionOverview(validation.options);
-      res.status(202).json({ overviewId: result.overviewId, status: result.status, durationMs: result.durationMs });
+      res.status(202).json({
+        overviewId: result.overviewId,
+        status: result.status,
+        durationMs: result.durationMs,
+        telegramPublished: result.telegramPublished,
+        marketRegime: result.marketRegime,
+        briefConfidence: result.briefConfidence,
+        collectorStatus: result.collectorStatus,
+      });
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
     }
