@@ -8,6 +8,14 @@ function fmtRotation(state: string): string {
   return state.replace(/_/g, ' ');
 }
 
+function extractEthBtcDirection(vsbtc: string): string | null {
+  const lower = vsbtc.toLowerCase();
+  if (lower.includes('rising')) return 'rising';
+  if (lower.includes('falling')) return 'falling';
+  if (lower.includes('sideways')) return 'sideways';
+  return null;
+}
+
 export function computeWhatChanged(
   previous: OverviewOutput,
   current: OverviewOutput,
@@ -49,6 +57,23 @@ export function computeWhatChanged(
     if (!currentTitles.has(ev.title)) {
       bullets.push(`Event resolved/removed: ${ev.title}`);
     }
+  }
+
+  // Derivatives funding shift — only flag when moving to or from an extreme reading
+  const prevFunding = previous.derivatives.funding;
+  const currFunding = current.derivatives.funding;
+  if (prevFunding !== currFunding) {
+    const significant = prevFunding.includes('extreme') || currFunding.includes('extreme');
+    if (significant) {
+      bullets.push(`Funding shift: ${prevFunding} → ${currFunding}`);
+    }
+  }
+
+  // ETH/BTC trend direction change
+  const prevEthDir = extractEthBtcDirection(previous.eth.vsbtc);
+  const currEthDir = extractEthBtcDirection(current.eth.vsbtc);
+  if (prevEthDir !== null && currEthDir !== null && prevEthDir !== currEthDir) {
+    bullets.push(`ETH/BTC trend: ${prevEthDir} → ${currEthDir}`);
   }
 
   if (bullets.length === 0) {

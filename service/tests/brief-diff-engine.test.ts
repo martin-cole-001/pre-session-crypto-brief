@@ -124,4 +124,63 @@ describe('computeWhatChanged()', () => {
     const result = computeWhatChanged(prev, curr);
     expect(result).not.toContain('No significant structural changes since previous brief.');
   });
+
+  describe('derivatives funding shift', () => {
+    it('detects shift from neutral to extreme positive', () => {
+      const prev = makeOutput({ derivatives: { ...makeOutput().derivatives, funding: 'neutral across BTC/ETH' } });
+      const curr = makeOutput({ derivatives: { ...makeOutput().derivatives, funding: 'extreme positive (overheated) on BTC, neutral on ETH' } });
+      const result = computeWhatChanged(prev, curr);
+      expect(result.some((b) => b.includes('Funding shift'))).toBe(true);
+    });
+
+    it('detects shift from extreme to neutral', () => {
+      const prev = makeOutput({ derivatives: { ...makeOutput().derivatives, funding: 'extreme negative on BTC' } });
+      const curr = makeOutput({ derivatives: { ...makeOutput().derivatives, funding: 'neutral across BTC/ETH' } });
+      const result = computeWhatChanged(prev, curr);
+      expect(result.some((b) => b.includes('Funding shift'))).toBe(true);
+    });
+
+    it('ignores non-extreme funding changes', () => {
+      const prev = makeOutput({ derivatives: { ...makeOutput().derivatives, funding: 'positive elevated across BTC/ETH' } });
+      const curr = makeOutput({ derivatives: { ...makeOutput().derivatives, funding: 'negative elevated across BTC/ETH' } });
+      const result = computeWhatChanged(prev, curr);
+      expect(result.some((b) => b.includes('Funding shift'))).toBe(false);
+    });
+
+    it('ignores when funding is unchanged', () => {
+      const base = makeOutput({ derivatives: { ...makeOutput().derivatives, funding: 'extreme positive on BTC' } });
+      const result = computeWhatChanged(base, makeOutput({ derivatives: { ...makeOutput().derivatives, funding: 'extreme positive on BTC' } }));
+      expect(result.some((b) => b.includes('Funding shift'))).toBe(false);
+    });
+  });
+
+  describe('ETH/BTC trend direction', () => {
+    it('detects falling to rising transition', () => {
+      const prev = makeOutput({ eth: { ...makeOutput().eth, vsbtc: 'ETH/BTC falling (-3.1% over 7d)' } });
+      const curr = makeOutput({ eth: { ...makeOutput().eth, vsbtc: 'ETH/BTC rising (+2.5% over 7d)' } });
+      const result = computeWhatChanged(prev, curr);
+      expect(result.some((b) => b.includes('ETH/BTC trend') && b.includes('falling') && b.includes('rising'))).toBe(true);
+    });
+
+    it('detects rising to sideways transition', () => {
+      const prev = makeOutput({ eth: { ...makeOutput().eth, vsbtc: 'ETH/BTC rising (+4.2% over 7d)' } });
+      const curr = makeOutput({ eth: { ...makeOutput().eth, vsbtc: 'ETH/BTC sideways (+0.5% over 7d)' } });
+      const result = computeWhatChanged(prev, curr);
+      expect(result.some((b) => b.includes('ETH/BTC trend'))).toBe(true);
+    });
+
+    it('ignores when direction is unchanged', () => {
+      const prev = makeOutput({ eth: { ...makeOutput().eth, vsbtc: 'ETH/BTC rising (+2.0% over 7d)' } });
+      const curr = makeOutput({ eth: { ...makeOutput().eth, vsbtc: 'ETH/BTC rising (+3.5% over 7d)' } });
+      const result = computeWhatChanged(prev, curr);
+      expect(result.some((b) => b.includes('ETH/BTC trend'))).toBe(false);
+    });
+
+    it('ignores when vsbtc has no parseable direction', () => {
+      const prev = makeOutput({ eth: { ...makeOutput().eth, vsbtc: 'in_line' } });
+      const curr = makeOutput({ eth: { ...makeOutput().eth, vsbtc: 'outperforming' } });
+      const result = computeWhatChanged(prev, curr);
+      expect(result.some((b) => b.includes('ETH/BTC trend'))).toBe(false);
+    });
+  });
 });
