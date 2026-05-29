@@ -1,29 +1,13 @@
 import { Router, type Request, type Response } from 'express';
 import type { SessionOverviewService } from '../../service/src/session-overview.service.js';
-import type { CryptoSession, OverviewFilters, EventFilters, CollectorRunFilters } from '../../service/src/ports.js';
-import type { OverviewRunOptions } from '../../service/src/service-types.js';
-
-const VALID_SESSIONS: ReadonlySet<string> = new Set<CryptoSession>([
-  'ASIA_CRYPTO',
-  'EUROPE_CRYPTO',
-  'US_CRYPTO',
-]);
-
-function isValidSession(value: string): value is CryptoSession {
-  return VALID_SESSIONS.has(value);
-}
-
-function parseIntParam(value: unknown): number | undefined {
-  if (typeof value !== 'string') return undefined;
-  const n = parseInt(value, 10);
-  return isNaN(n) ? undefined : n;
-}
-
-function parseDateParam(value: unknown): Date | undefined {
-  if (typeof value !== 'string') return undefined;
-  const d = new Date(value);
-  return isNaN(d.getTime()) ? undefined : d;
-}
+import type { OverviewFilters, EventFilters, CollectorRunFilters } from '../../service/src/ports.js';
+import {
+  isValidSession,
+  clampLimit,
+  parseDateParam,
+  validateTriggerBody,
+  VALID_SESSIONS_LIST,
+} from './router-validators.js';
 
 export function createSessionOverviewRouter(service: SessionOverviewService): Router {
   const router = Router();
@@ -36,18 +20,37 @@ export function createSessionOverviewRouter(service: SessionOverviewService): Ro
   // GET /overviews — list with filters
   router.get('/overviews', async (req: Request, res: Response): Promise<void> => {
     const { session, limit, fromDate } = req.query;
-    if (session !== undefined && (typeof session !== 'string' || !isValidSession(session))) {
-      res.status(400).json({ error: 'Invalid session', validSessions: Array.from(VALID_SESSIONS) });
+    if (session !== undefined && !isValidSession(session)) {
+      res.status(400).json({ error: 'Invalid session', code: 'INVALID_SESSION', validSessions: VALID_SESSIONS_LIST });
       return;
     }
     const filters: OverviewFilters = {
-      ...(typeof session === 'string' ? { session: session as CryptoSession } : {}),
-      ...(parseIntParam(limit) !== undefined ? { limit: parseIntParam(limit) } : {}),
+      ...(isValidSession(session) ? { session } : {}),
+      ...(clampLimit(limit) !== undefined ? { limit: clampLimit(limit) } : {}),
       ...(parseDateParam(fromDate) !== undefined ? { fromDate: parseDateParam(fromDate) } : {}),
     };
     try {
       const records = await service.listOverviews(filters);
       res.status(200).json({ items: records, count: records.length });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  // GET /overviews/latest/:session — MUST be before /overviews/:id to avoid swallowing 'latest' as an ID
+  router.get('/overviews/latest/:session', async (req: Request, res: Response): Promise<void> => {
+    const { session } = req.params;
+    if (!isValidSession(session)) {
+      res.status(400).json({ error: 'Invalid session', code: 'INVALID_SESSION', validSessions: VALID_SESSIONS_LIST });
+      return;
+    }
+    try {
+      const record = await service.getLatestOverview(session);
+      if (record === null) {
+        res.status(404).json({ error: `No overview found for session: ${session}`, code: 'NOT_FOUND' });
+        return;
+      }
+      res.status(200).json(record);
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
     }
@@ -59,26 +62,7 @@ export function createSessionOverviewRouter(service: SessionOverviewService): Ro
     try {
       const record = await service.getOverviewById(id);
       if (record === null) {
-        res.status(404).json({ error: `Overview not found: ${id}` });
-        return;
-      }
-      res.status(200).json(record);
-    } catch (err) {
-      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
-    }
-  });
-
-  // GET /overviews/latest/:session — latest by session
-  router.get('/overviews/latest/:session', async (req: Request, res: Response): Promise<void> => {
-    const { session } = req.params;
-    if (!isValidSession(session)) {
-      res.status(400).json({ error: 'Invalid session', validSessions: Array.from(VALID_SESSIONS) });
-      return;
-    }
-    try {
-      const record = await service.getLatestOverview(session);
-      if (record === null) {
-        res.status(404).json({ error: `No overview found for session: ${session}` });
+        res.status(404).json({ error: `Overview not found: ${id}`, code: 'NOT_FOUND' });
         return;
       }
       res.status(200).json(record);
@@ -90,14 +74,14 @@ export function createSessionOverviewRouter(service: SessionOverviewService): Ro
   // GET /events — list collected events
   router.get('/events', async (req: Request, res: Response): Promise<void> => {
     const { session, eventType, limit, fromDate } = req.query;
-    if (session !== undefined && (typeof session !== 'string' || !isValidSession(session))) {
-      res.status(400).json({ error: 'Invalid session', validSessions: Array.from(VALID_SESSIONS) });
+    if (session !== undefined && !isValidSession(session)) {
+      res.status(400).json({ error: 'Invalid session', code: 'INVALID_SESSION', validSessions: VALID_SESSIONS_LIST });
       return;
     }
     const filters: EventFilters = {
-      ...(typeof session === 'string' ? { session: session as CryptoSession } : {}),
+      ...(isValidSession(session) ? { session } : {}),
       ...(typeof eventType === 'string' ? { eventType } : {}),
-      ...(parseIntParam(limit) !== undefined ? { limit: parseIntParam(limit) } : {}),
+      ...(clampLimit(limit) !== undefined ? { limit: clampLimit(limit) } : {}),
       ...(parseDateParam(fromDate) !== undefined ? { fromDate: parseDateParam(fromDate) } : {}),
     };
     try {
@@ -115,7 +99,7 @@ export function createSessionOverviewRouter(service: SessionOverviewService): Ro
       ...(typeof collectorName === 'string' ? { collectorName } : {}),
       ...(typeof status === 'string' && ['SUCCESS', 'FAILED', 'SKIPPED'].includes(status)
         ? { status: status as CollectorRunFilters['status'] } : {}),
-      ...(parseIntParam(limit) !== undefined ? { limit: parseIntParam(limit) } : {}),
+      ...(clampLimit(limit) !== undefined ? { limit: clampLimit(limit) } : {}),
       ...(parseDateParam(fromDate) !== undefined ? { fromDate: parseDateParam(fromDate) } : {}),
     };
     try {
@@ -128,54 +112,32 @@ export function createSessionOverviewRouter(service: SessionOverviewService): Ro
 
   // POST /overviews/trigger — manual trigger
   router.post('/overviews/trigger', async (req: Request, res: Response): Promise<void> => {
-    const body = req.body as { session?: unknown; symbols?: unknown; publish?: unknown };
-    const { session, symbols, publish } = body;
-
-    if (typeof session !== 'string' || !isValidSession(session)) {
-      res.status(400).json({ error: 'Invalid or missing session', validSessions: Array.from(VALID_SESSIONS) });
+    const validation = validateTriggerBody(req.body);
+    if (!validation.ok) {
+      res.status(400).json({ error: validation.error, code: validation.code });
       return;
     }
-
-    if (
-      typeof symbols !== 'object' || symbols === null ||
-      !Array.isArray((symbols as { core?: unknown }).core) ||
-      !Array.isArray((symbols as { major?: unknown }).major) ||
-      !Array.isArray((symbols as { watch?: unknown }).watch)
-    ) {
-      res.status(400).json({ error: 'Invalid symbols — expected { core: string[], major: string[], watch: string[] }' });
-      return;
-    }
-
-    const sym = symbols as { core: string[]; major: string[]; watch: string[] };
-    const options: OverviewRunOptions = {
-      session,
-      symbols: { core: sym.core, major: sym.major, watch: sym.watch },
-      ...(publish !== undefined ? { publish: Boolean(publish) } : {}),
-    };
-
     try {
-      const result = await service.runSessionOverview(options);
+      const result = await service.runSessionOverview(validation.options);
       res.status(202).json({ overviewId: result.overviewId, status: result.status, durationMs: result.durationMs });
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
     }
   });
 
-  // Legacy aliases
+  // Legacy alias — canonical path preferred
   router.get('/overview/:session', async (req: Request, res: Response): Promise<void> => {
     const { session } = req.params;
     if (!isValidSession(session)) {
-      res.status(400).json({ error: 'Invalid session', validSessions: Array.from(VALID_SESSIONS) });
+      res.status(400).json({ error: 'Invalid session', code: 'INVALID_SESSION', validSessions: VALID_SESSIONS_LIST });
       return;
     }
     const record = await service.getLatestOverview(session).catch(() => null);
-    if (record === null) { res.status(404).json({ error: `No overview found for session: ${session}` }); return; }
+    if (record === null) {
+      res.status(404).json({ error: `No overview found for session: ${session}`, code: 'NOT_FOUND' });
+      return;
+    }
     res.status(200).json(record);
-  });
-
-  router.post('/overview/trigger', async (req: Request, res: Response): Promise<void> => {
-    req.url = '/overviews/trigger';
-    router.handle(req, res, () => { res.status(404).end(); });
   });
 
   return router;
