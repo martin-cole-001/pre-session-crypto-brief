@@ -244,7 +244,7 @@ export interface DerivativesCollector {
 
 export interface EventCollector {
   readonly sourceName: string;
-  collect(session: CryptoSession): Promise<NormalizedEvent[]>;
+  collect(ctx: CollectorRunContext): Promise<CollectorResult<NormalizedEvent[]>>;
 }
 
 export interface ActiveSetupsLoader {

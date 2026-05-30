@@ -1,5 +1,5 @@
 import { XMLParser } from 'fast-xml-parser';
-import type { EventCollector, NormalizedEvent, CryptoSession, NormalizedEventType } from '../../../service/src/ports.js';
+import type { EventCollector, NormalizedEvent, NormalizedEventType, CollectorRunContext, CollectorResult } from '../../../service/src/ports.js';
 
 const RSS_URL = 'https://www.federalreserve.gov/feeds/press_releases.xml';
 
@@ -53,7 +53,7 @@ function resolveGuid(guid: string | { '#text': string } | undefined): string | u
 export class FedCalendarCollector implements EventCollector {
   readonly sourceName = 'fed-calendar';
 
-  async collect(_session: CryptoSession): Promise<NormalizedEvent[]> {
+  async collect(_ctx: CollectorRunContext): Promise<CollectorResult<NormalizedEvent[]>> {
     const response = await fetch(RSS_URL, {
       headers: { 'User-Agent': 'trader-agent/session-overview' },
     });
@@ -71,14 +71,14 @@ export class FedCalendarCollector implements EventCollector {
     };
 
     const rawItems = rss.rss?.channel?.item;
-    if (rawItems === undefined) return [];
+    if (rawItems === undefined) return { status: 'success', data: [], itemCount: 0 };
 
     const items: RssItem[] = Array.isArray(rawItems) ? rawItems : [rawItems];
 
     const now = NOW_MS();
     const detectedAt = new Date(now).toISOString();
 
-    return items
+    const events = items
       .filter((item) => isWithinWindow(item.pubDate))
       .map((item): NormalizedEvent => {
         const title = item.title ?? '';
@@ -103,5 +103,6 @@ export class FedCalendarCollector implements EventCollector {
           relevanceScore,
         };
       });
+    return { status: 'success', data: events, itemCount: events.length };
   }
 }

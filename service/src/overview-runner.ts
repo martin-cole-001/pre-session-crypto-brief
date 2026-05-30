@@ -48,21 +48,41 @@ export class OverviewRunner {
       const derivativesContext = await this.deps.derivativesCollector.collect(allSymbols);
 
       // 3. Collect events from all collectors in parallel (failures are soft)
+      const sessionBoundary = getSessionBoundaryForDate(session, new Date());
+      const runCtx: CollectorRunContext = {
+        session,
+        now: new Date(),
+        timezone: 'UTC',
+        symbols,
+        sessionWindow: {
+          start: new Date(sessionBoundary.startMs),
+          end: new Date(sessionBoundary.endMs),
+        },
+        lookaheadHours: 24,
+      };
+
       const allEvents: NormalizedEvent[] = [];
       const collectorRuns: CollectorRunRecord[] = [];
       const eventResults = await Promise.allSettled(
         this.deps.eventCollectors.map(async (collector) => {
           const t0 = Date.now();
           try {
-            const events = await collector.collect(session);
+            const result = await collector.collect(runCtx);
+            const events = result.data ?? [];
             collectorRuns.push({
               collectorName: collector.sourceName,
               startedAt: new Date(t0),
               finishedAt: new Date(),
-              status: 'SUCCESS',
-              itemCount: events.length,
+              status: result.status === 'success' ? 'SUCCESS'
+                : result.status === 'partial' ? 'PARTIAL'
+                : result.status === 'skipped' ? 'SKIPPED'
+                : 'FAILED',
+              itemCount: result.itemCount,
               durationMs: Date.now() - t0,
-              source: collector.sourceName,
+              source: result.source ?? collector.sourceName,
+              ...(result.payloadHash !== undefined ? { payloadHash: result.payloadHash } : {}),
+              ...(result.dataFreshnessSeconds !== undefined ? { dataFreshnessSeconds: result.dataFreshnessSeconds } : {}),
+              ...(result.error !== undefined ? { errorMessage: result.error } : {}),
             });
             return events;
           } catch (err) {
@@ -217,19 +237,6 @@ export class OverviewRunner {
       });
 
       // 7c. Run context collectors (liquidity, ETF flows, options, macro rates)
-      const sessionBoundary = getSessionBoundaryForDate(session, new Date());
-      const runCtx: CollectorRunContext = {
-        session,
-        now: new Date(),
-        timezone: 'UTC',
-        symbols,
-        sessionWindow: {
-          start: new Date(sessionBoundary.startMs),
-          end: new Date(sessionBoundary.endMs),
-        },
-        lookaheadHours: 24,
-      };
-
       let augmentedInput = input;
       const contextRunRecords: CollectorRunRecord[] = [];
 

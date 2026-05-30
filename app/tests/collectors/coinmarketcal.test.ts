@@ -1,4 +1,7 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
+import type { CollectorRunContext } from '../../../service/src/ports.js';
+
+const ctx = { session: 'US_CRYPTO' } as CollectorRunContext;
 
 const API_KEY = 'test-api-key';
 
@@ -60,12 +63,12 @@ describe('CoinMarketCalCollector', () => {
       '../../src/collectors/coinmarketcal.collector.js'
     );
     const collector = new CoinMarketCalCollector(API_KEY);
-    const result = await collector.collect('US_CRYPTO');
+    const result = await collector.collect(ctx);
 
-    expect(result).toHaveLength(3);
-    expect(result[0]?.eventType).toBe('protocol_upgrade');
-    expect(result[1]?.eventType).toBe('airdrop');
-    expect(result[2]?.eventType).toBe('exchange_listing');
+    expect(result.data).toHaveLength(3);
+    expect(result.data?.[0]?.eventType).toBe('protocol_upgrade');
+    expect(result.data?.[1]?.eventType).toBe('airdrop');
+    expect(result.data?.[2]?.eventType).toBe('exchange_listing');
   });
 
   it('does NOT include coins= in URL when no coins param provided', async () => {
@@ -75,7 +78,7 @@ describe('CoinMarketCalCollector', () => {
       '../../src/collectors/coinmarketcal.collector.js'
     );
     const collector = new CoinMarketCalCollector(API_KEY);
-    await collector.collect('US_CRYPTO');
+    await collector.collect(ctx);
 
     expect(fetchSpy).toHaveBeenCalledOnce();
     const calledUrl: string = fetchSpy.mock.calls[0][0] as string;
@@ -89,7 +92,7 @@ describe('CoinMarketCalCollector', () => {
       '../../src/collectors/coinmarketcal.collector.js'
     );
     const collector = new CoinMarketCalCollector(API_KEY, 'bitcoin,ethereum');
-    await collector.collect('US_CRYPTO');
+    await collector.collect(ctx);
 
     expect(fetchSpy).toHaveBeenCalledOnce();
     const calledUrl: string = fetchSpy.mock.calls[0][0] as string;
@@ -107,10 +110,10 @@ describe('CoinMarketCalCollector', () => {
       '../../src/collectors/coinmarketcal.collector.js'
     );
     const collector = new CoinMarketCalCollector(API_KEY);
-    const result = await collector.collect('US_CRYPTO');
+    const result = await collector.collect(ctx);
 
-    expect(result[0]?.importance).toBe('critical');
-    expect(result[1]?.importance).toBe('critical');
+    expect(result.data?.[0]?.importance).toBe('critical');
+    expect(result.data?.[1]?.importance).toBe('critical');
   });
 
   it('importanceFor returns high for percentage 80-89', async () => {
@@ -124,10 +127,10 @@ describe('CoinMarketCalCollector', () => {
       '../../src/collectors/coinmarketcal.collector.js'
     );
     const collector = new CoinMarketCalCollector(API_KEY);
-    const result = await collector.collect('US_CRYPTO');
+    const result = await collector.collect(ctx);
 
-    expect(result[0]?.importance).toBe('high');
-    expect(result[1]?.importance).toBe('high');
+    expect(result.data?.[0]?.importance).toBe('high');
+    expect(result.data?.[1]?.importance).toBe('high');
   });
 
   it('uses cache: second call with same session should not call fetch again within TTL', async () => {
@@ -137,8 +140,8 @@ describe('CoinMarketCalCollector', () => {
       '../../src/collectors/coinmarketcal.collector.js'
     );
     const collector = new CoinMarketCalCollector(API_KEY);
-    await collector.collect('US_CRYPTO');
-    await collector.collect('US_CRYPTO');
+    await collector.collect(ctx);
+    await collector.collect(ctx);
 
     // Second call hits module-level cache, fetch called only once
     expect(fetchSpy).toHaveBeenCalledTimes(1);
@@ -151,6 +154,6 @@ describe('CoinMarketCalCollector', () => {
       '../../src/collectors/coinmarketcal.collector.js'
     );
     const collector = new CoinMarketCalCollector(API_KEY);
-    await expect(collector.collect('US_CRYPTO')).rejects.toThrow('401');
+    await expect(collector.collect(ctx)).rejects.toThrow('401');
   });
 });

@@ -1,4 +1,4 @@
-import type { EventCollector, NormalizedEvent, CryptoSession } from '../../../service/src/ports.js';
+import type { EventCollector, NormalizedEvent, CryptoSession, CollectorRunContext, CollectorResult } from '../../../service/src/ports.js';
 
 const API_URL = 'https://api.llama.fi/emission';
 const ALL_SESSIONS: CryptoSession[] = ['ASIA_CRYPTO', 'EUROPE_CRYPTO', 'US_CRYPTO'];
@@ -40,7 +40,7 @@ export class TokenUnlocksCollector implements EventCollector {
 
   constructor(private readonly lookaheadDays: number = 3) {}
 
-  async collect(_session: CryptoSession): Promise<NormalizedEvent[]> {
+  async collect(_ctx: CollectorRunContext): Promise<CollectorResult<NormalizedEvent[]>> {
     const response = await fetch(API_URL, {
       headers: { 'User-Agent': 'trader-agent/session-overview' },
     });
@@ -52,7 +52,7 @@ export class TokenUnlocksCollector implements EventCollector {
     const body: unknown = await response.json();
     const emissions = body as DefiLlamaEmission[];
 
-    if (!Array.isArray(emissions) || emissions.length === 0) return [];
+    if (!Array.isArray(emissions) || emissions.length === 0) return { status: 'success', data: [], itemCount: 0 };
 
     const now = Date.now();
     const nowSec = Math.floor(now / 1000);
@@ -108,6 +108,6 @@ export class TokenUnlocksCollector implements EventCollector {
       }
     }
 
-    return results;
+    return { status: 'success', data: results, itemCount: results.length };
   }
 }

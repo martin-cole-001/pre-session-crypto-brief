@@ -1,4 +1,4 @@
-import type { EventCollector, NormalizedEvent, CryptoSession } from '../../../service/src/ports.js';
+import type { EventCollector, NormalizedEvent, CryptoSession, CollectorRunContext, CollectorResult } from '../../../service/src/ports.js';
 
 const EMISSIONS_URL = 'https://api.llama.fi/emission';
 const MOBULA_BASE = 'https://api.mobula.io/api/1/market/multi-data';
@@ -60,12 +60,12 @@ export class MobulaUnlocksCollector implements EventCollector {
     private readonly focusSymbols: string[] = [],
   ) {}
 
-  async collect(_session: CryptoSession): Promise<NormalizedEvent[]> {
+  async collect(_ctx: CollectorRunContext): Promise<CollectorResult<NormalizedEvent[]>> {
     const emissionsRes = await fetch(EMISSIONS_URL, { headers: { 'User-Agent': UA } });
     if (!emissionsRes.ok) throw new Error(`DefiLlama emissions: ${emissionsRes.status}`);
 
     const emissions = await emissionsRes.json() as DefiLlamaEmission[];
-    if (!Array.isArray(emissions) || emissions.length === 0) return [];
+    if (!Array.isArray(emissions) || emissions.length === 0) return { status: 'success', data: [], itemCount: 0 };
 
     const now = Math.floor(Date.now() / 1000);
     const windowEnd = now + LOOKAHEAD_72H;
@@ -85,7 +85,7 @@ export class MobulaUnlocksCollector implements EventCollector {
         }
       }
     }
-    if (candidates.length === 0) return [];
+    if (candidates.length === 0) return { status: 'success', data: [], itemCount: 0 };
 
     // Batch-fetch Mobula market data for unique symbols
     const symbols = [...new Set(candidates.map((c) => c.emission.symbol))];
@@ -135,6 +135,6 @@ export class MobulaUnlocksCollector implements EventCollector {
       });
     }
 
-    return results;
+    return { status: 'success', data: results, itemCount: results.length };
   }
 }

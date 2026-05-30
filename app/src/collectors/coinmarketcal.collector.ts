@@ -1,4 +1,4 @@
-import type { EventCollector, NormalizedEvent, CryptoSession, NormalizedEventType } from '../../../service/src/ports.js';
+import type { EventCollector, NormalizedEvent, CryptoSession, NormalizedEventType, CollectorRunContext, CollectorResult } from '../../../service/src/ports.js';
 
 const API_BASE = 'https://developers.coinmarketcal.com/v1/events';
 const ALL_SESSIONS: CryptoSession[] = ['ASIA_CRYPTO', 'EUROPE_CRYPTO', 'US_CRYPTO'];
@@ -83,13 +83,14 @@ export class CoinMarketCalCollector implements EventCollector {
 
   constructor(private readonly apiKey: string, private readonly coins?: string) {}
 
-  async collect(session: CryptoSession): Promise<NormalizedEvent[]> {
+  async collect(ctx: CollectorRunContext): Promise<CollectorResult<NormalizedEvent[]>> {
+    const session = ctx.session;
     const now = new Date();
     const dateStr = now.toISOString().slice(0, 10); // YYYY-MM-DD
     const cacheKey = `${session}:${this.coins ?? 'all'}:${dateStr}`;
     const cached = cache.get(cacheKey);
     if (cached !== undefined && Date.now() - cached.fetchedAt < CACHE_TTL_MS) {
-      return cached.data;
+      return { status: 'success', data: cached.data, itemCount: cached.data.length };
     }
 
     const end = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
@@ -144,6 +145,6 @@ export class CoinMarketCalCollector implements EventCollector {
     });
 
     cache.set(cacheKey, { data: normalized, fetchedAt: Date.now() });
-    return normalized;
+    return { status: 'success', data: normalized, itemCount: normalized.length };
   }
 }

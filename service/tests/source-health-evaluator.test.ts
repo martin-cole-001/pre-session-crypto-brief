@@ -60,13 +60,13 @@ describe('computeDataStatus()', () => {
       expect(result.events).toBe('partial');
     });
 
-    it('is partial when all collectors succeed but return 0 items', () => {
+    it('is fresh when all collectors succeed but return 0 items (quiet session)', () => {
       const collectors = [
         makeCollector('success', 0, 'bybit'),
         makeCollector('success', 0, 'fed-calendar'),
       ];
       const result = computeDataStatus({ priceOk: true, derivativesOk: true, eventCollectors: collectors });
-      expect(result.events).toBe('partial');
+      expect(result.events).toBe('fresh');
     });
 
     it('is partial when all failed except one with items', () => {
@@ -98,11 +98,11 @@ describe('computeDataStatus()', () => {
       expect(result.events).toBe('fresh');
     });
 
-    it('distinguishes 0-items-succeeded (partial) from error-failed (failed vs partial)', () => {
-      // One zero-items, no errors → partial (not failed)
+    it('distinguishes 0-items-succeeded (fresh) from error-failed (failed vs partial)', () => {
+      // One zero-items, no errors → fresh (quiet session, not a data problem)
       const zeroItems = [makeCollector('success', 0)];
       const failResult = computeDataStatus({ priceOk: true, derivativesOk: true, eventCollectors: zeroItems });
-      expect(failResult.events).toBe('partial');
+      expect(failResult.events).toBe('fresh');
 
       // All erroring → failed
       const allFail = [makeCollector('failed', 0), makeCollector('failed', 0)];

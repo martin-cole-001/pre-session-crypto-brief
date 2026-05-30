@@ -1,5 +1,5 @@
 import { XMLParser } from 'fast-xml-parser';
-import type { EventCollector, NormalizedEvent, CryptoSession, NormalizedEventType } from '../../../service/src/ports.js';
+import type { EventCollector, NormalizedEvent, NormalizedEventType, CollectorRunContext, CollectorResult } from '../../../service/src/ports.js';
 
 const ATOM_URL =
   'https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=19b-4&dateb=&owner=include&count=20&search_text=&output=atom';
@@ -57,7 +57,7 @@ function resolveLink(link: AtomEntry['link']): string {
 export class SecRssCollector implements EventCollector {
   readonly sourceName = 'sec-rss';
 
-  async collect(_session: CryptoSession): Promise<NormalizedEvent[]> {
+  async collect(_ctx: CollectorRunContext): Promise<CollectorResult<NormalizedEvent[]>> {
     const response = await fetch(ATOM_URL, {
       headers: { 'User-Agent': 'trader-agent/session-overview' },
     });
@@ -75,14 +75,14 @@ export class SecRssCollector implements EventCollector {
     };
 
     const rawEntries = feed.feed?.entry;
-    if (rawEntries === undefined) return [];
+    if (rawEntries === undefined) return { status: 'success', data: [], itemCount: 0 };
 
     const entries: AtomEntry[] = Array.isArray(rawEntries) ? rawEntries : [rawEntries];
 
     const now = Date.now();
     const detectedAt = new Date(now).toISOString();
 
-    return entries
+    const events = entries
       .filter((entry) => {
         if (!isWithinWindow(entry.updated)) return false;
         const combined = `${entry.title ?? ''} ${entry.summary ?? ''}`;
@@ -111,5 +111,6 @@ export class SecRssCollector implements EventCollector {
           relevanceScore,
         };
       });
+    return { status: 'success', data: events, itemCount: events.length };
   }
 }

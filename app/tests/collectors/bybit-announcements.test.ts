@@ -1,5 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
+import type { CollectorRunContext } from '../../../service/src/ports.js';
 import { BybitAnnouncementsCollector } from '../../src/collectors/bybit-announcements.js';
+
+const ctx = {} as CollectorRunContext;
 
 describe('BybitAnnouncementsCollector', () => {
   it('propagates error when getAnnouncements throws — does not silently return []', async () => {
@@ -7,7 +10,7 @@ describe('BybitAnnouncementsCollector', () => {
       getAnnouncements: vi.fn().mockRejectedValue(new Error('network timeout')),
     };
     const collector = new BybitAnnouncementsCollector(client as never);
-    await expect(collector.collect('EUROPE_CRYPTO')).rejects.toThrow('network timeout');
+    await expect(collector.collect(ctx)).rejects.toThrow('network timeout');
   });
 
   it('propagates non-Error rejection', async () => {
@@ -15,7 +18,7 @@ describe('BybitAnnouncementsCollector', () => {
       getAnnouncements: vi.fn().mockRejectedValue('ECONNREFUSED'),
     };
     const collector = new BybitAnnouncementsCollector(client as never);
-    await expect(collector.collect('ASIA_CRYPTO')).rejects.toBeDefined();
+    await expect(collector.collect(ctx)).rejects.toBeDefined();
   });
 
   it('returns mapped events on success', async () => {
@@ -31,8 +34,10 @@ describe('BybitAnnouncementsCollector', () => {
       ]),
     };
     const collector = new BybitAnnouncementsCollector(client as never);
-    const events = await collector.collect('EUROPE_CRYPTO');
-    expect(events).toHaveLength(1);
-    expect(events[0]?.eventType).toBe('exchange_listing');
+    const result = await collector.collect(ctx);
+    expect(result.data).toHaveLength(1);
+    expect(result.data?.[0]?.eventType).toBe('exchange_listing');
+    expect(result.status).toBe('success');
+    expect(result.itemCount).toBe(1);
   });
 });

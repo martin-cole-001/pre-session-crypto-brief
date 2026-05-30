@@ -51,10 +51,10 @@ export function computeDataStatus(params: {
     events = 'unavailable';
   } else if (failedCount === total) {
     events = 'failed';
-  } else if (failedCount > 0 || withItemsCount === 0) {
-    // Some collectors failed, OR all succeeded but returned 0 items
+  } else if (failedCount > 0) {
     events = 'partial';
   } else {
+    // All collectors succeeded — zero items means no events this session, not a data problem
     events = 'fresh';
   }
 

@@ -1,7 +1,10 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
+import type { CollectorRunContext } from '../../../service/src/ports.js';
 import { MobulaUnlocksCollector } from '../../src/collectors/mobula-unlocks.collector.js';
 
 afterEach(() => { vi.restoreAllMocks(); });
+
+const ctx = {} as CollectorRunContext;
 
 const now = Math.floor(Date.now() / 1000);
 const in24h = now + 24 * 60 * 60;
@@ -35,11 +38,11 @@ describe('MobulaUnlocksCollector', () => {
     stubFetches([baseEmission], { ARB: { price: 0.15, market_cap: 2e9, circulating_supply: 10e9, rank: 50 } });
 
     const collector = new MobulaUnlocksCollector('key');
-    const events = await collector.collect('US_CRYPTO');
+    const result = await collector.collect(ctx);
 
-    expect(events).toHaveLength(1);
-    expect(events[0]?.asset).toBe('ARB');
-    expect(events[0]?.source).toBe('defillama-mobula-unlocks');
+    expect(result.data).toHaveLength(1);
+    expect(result.data?.[0]?.asset).toBe('ARB');
+    expect(result.data?.[0]?.source).toBe('defillama-mobula-unlocks');
   });
 
   it('includes unlock when token count > 1% of circulating supply', async () => {
@@ -47,9 +50,9 @@ describe('MobulaUnlocksCollector', () => {
     stubFetches([baseEmission], { ARB: { price: 0.01, market_cap: 50_000_000, circulating_supply: 5_000_000_000, rank: 500 } });
 
     const collector = new MobulaUnlocksCollector('key');
-    const events = await collector.collect('US_CRYPTO');
+    const result = await collector.collect(ctx);
 
-    expect(events).toHaveLength(1);
+    expect(result.data).toHaveLength(1);
   });
 
   it('includes unlock when token rank is within top 200', async () => {
@@ -57,9 +60,9 @@ describe('MobulaUnlocksCollector', () => {
     stubFetches([baseEmission], { ARB: { price: 0.0001, market_cap: 1e6, circulating_supply: 1e12, rank: 150 } });
 
     const collector = new MobulaUnlocksCollector('key');
-    const events = await collector.collect('US_CRYPTO');
+    const result = await collector.collect(ctx);
 
-    expect(events).toHaveLength(1);
+    expect(result.data).toHaveLength(1);
   });
 
   it('includes unlock when symbol is in focus list', async () => {
@@ -67,9 +70,9 @@ describe('MobulaUnlocksCollector', () => {
     stubFetches([baseEmission], { ARB: { price: 0.0001, market_cap: 1e6, circulating_supply: 1e12, rank: 999 } });
 
     const collector = new MobulaUnlocksCollector('key', ['ARBUSDT']);
-    const events = await collector.collect('US_CRYPTO');
+    const result = await collector.collect(ctx);
 
-    expect(events).toHaveLength(1);
+    expect(result.data).toHaveLength(1);
   });
 
   it('excludes unlock when no relevance criteria pass', async () => {
@@ -80,9 +83,9 @@ describe('MobulaUnlocksCollector', () => {
     );
 
     const collector = new MobulaUnlocksCollector('key');
-    const events = await collector.collect('US_CRYPTO');
+    const result = await collector.collect(ctx);
 
-    expect(events).toHaveLength(0);
+    expect(result.data).toHaveLength(0);
   });
 
   it('excludes unlocks outside the 72h window', async () => {
@@ -92,18 +95,18 @@ describe('MobulaUnlocksCollector', () => {
     );
 
     const collector = new MobulaUnlocksCollector('key');
-    const events = await collector.collect('US_CRYPTO');
+    const result = await collector.collect(ctx);
 
-    expect(events).toHaveLength(0);
+    expect(result.data).toHaveLength(0);
   });
 
   it('marks confidence as high when Mobula data is available, medium otherwise', async () => {
     stubFetches([baseEmission], { ARB: { price: 0.15, market_cap: 2e9, rank: 50 } });
 
     const collector = new MobulaUnlocksCollector('key');
-    const events = await collector.collect('US_CRYPTO');
+    const result = await collector.collect(ctx);
 
-    expect(events[0]?.confidence).toBe('high');
+    expect(result.data?.[0]?.confidence).toBe('high');
   });
 
   it('still returns events when Mobula batch returns no data (market undefined)', async () => {
@@ -116,16 +119,16 @@ describe('MobulaUnlocksCollector', () => {
     }));
 
     const collector = new MobulaUnlocksCollector('key', ['ARBUSDT']);
-    const events = await collector.collect('US_CRYPTO');
+    const result = await collector.collect(ctx);
 
-    expect(events).toHaveLength(1);
-    expect(events[0]?.confidence).toBe('medium');
+    expect(result.data).toHaveLength(1);
+    expect(result.data?.[0]?.confidence).toBe('medium');
   });
 
   it('throws when DefiLlama emissions fetch fails', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('Bad Gateway', { status: 502 })));
 
     const collector = new MobulaUnlocksCollector('key');
-    await expect(collector.collect('US_CRYPTO')).rejects.toThrow('502');
+    await expect(collector.collect(ctx)).rejects.toThrow('502');
   });
 });

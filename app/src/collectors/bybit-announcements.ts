@@ -1,4 +1,4 @@
-import type { EventCollector, NormalizedEvent, CryptoSession, NormalizedEventType } from '../../../service/src/ports.js';
+import type { EventCollector, NormalizedEvent, CryptoSession, NormalizedEventType, CollectorRunContext, CollectorResult } from '../../../service/src/ports.js';
 import type { BybitHttpClient, BybitAnnouncement } from '../bybit-http-client.js';
 
 const ALL_SESSIONS: CryptoSession[] = ['ASIA_CRYPTO', 'EUROPE_CRYPTO', 'US_CRYPTO'];
@@ -47,9 +47,10 @@ export class BybitAnnouncementsCollector implements EventCollector {
 
   constructor(private readonly client: BybitHttpClient) {}
 
-  async collect(_session: CryptoSession): Promise<NormalizedEvent[]> {
+  async collect(_ctx: CollectorRunContext): Promise<CollectorResult<NormalizedEvent[]>> {
     const announcements = await this.client.getAnnouncements(20);
-    return announcements.map((a) => this.mapToEvent(a));
+    const events = announcements.map((a) => this.mapToEvent(a));
+    return { status: 'success', data: events, itemCount: events.length };
   }
 
   private mapToEvent(announcement: BybitAnnouncement): NormalizedEvent {

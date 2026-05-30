@@ -1,4 +1,4 @@
-import type { EventCollector, NormalizedEvent, CryptoSession, NormalizedEventType } from '../../../service/src/ports.js';
+import type { EventCollector, NormalizedEvent, CryptoSession, NormalizedEventType, CollectorRunContext, CollectorResult } from '../../../service/src/ports.js';
 
 const API_URL =
   'https://www.binance.com/bapi/composite/v1/public/cms/article/list/query?type=1&pageNo=1&pageSize=20&catalogId=49';
@@ -50,7 +50,7 @@ function classifyTitle(title: string): {
 export class BinanceAnnouncementsCollector implements EventCollector {
   readonly sourceName = 'binance-announcements';
 
-  async collect(_session: CryptoSession): Promise<NormalizedEvent[]> {
+  async collect(_ctx: CollectorRunContext): Promise<CollectorResult<NormalizedEvent[]>> {
     const response = await fetch(API_URL, {
       headers: {
         'User-Agent': 'trader-agent/session-overview',
@@ -79,9 +79,9 @@ export class BinanceAnnouncementsCollector implements EventCollector {
 
     const articles = parsed.data.articles.filter((a) => a.releaseDate >= cutoff);
 
-    if (articles.length === 0) return [];
+    if (articles.length === 0) return { status: 'success', data: [], itemCount: 0 };
 
-    return articles.map((article): NormalizedEvent => {
+    const events = articles.map((article): NormalizedEvent => {
       const { eventType, importance, relevanceScore } = classifyTitle(article.title);
       const dedupeKey = `binance-${article.id}`;
 
@@ -102,5 +102,6 @@ export class BinanceAnnouncementsCollector implements EventCollector {
         relevanceScore,
       };
     });
+    return { status: 'success', data: events, itemCount: events.length };
   }
 }
