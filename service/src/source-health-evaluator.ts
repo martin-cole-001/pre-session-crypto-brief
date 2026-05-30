@@ -42,16 +42,14 @@ export function computeDataStatus(params: {
 
   const total = eventCollectors.length;
   const failedCount = eventCollectors.filter((c) => c.status === 'failed').length;
-  const withItemsCount = eventCollectors.filter(
-    (c) => c.status === 'success' && c.itemCount > 0,
-  ).length;
+  const partialCount = eventCollectors.filter((c) => c.status === 'partial').length;
 
   let events: DataStatusValue;
   if (total === 0) {
     events = 'unavailable';
   } else if (failedCount === total) {
     events = 'failed';
-  } else if (failedCount > 0) {
+  } else if (failedCount > 0 || partialCount > 0) {
     events = 'partial';
   } else {
     // All collectors succeeded — zero items means no events this session, not a data problem
